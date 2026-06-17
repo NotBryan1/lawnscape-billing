@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, Users, DollarSign, FileText, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
+import { itemsOf, billDate, parseDate } from '../utils/bills'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -19,7 +20,7 @@ export default function Dashboard() {
       setCustomerCount(customers.length)
       const now = new Date()
       const thisMonth = bills.filter(b => {
-        const d = new Date(b.date + 'T00:00:00')
+        const d = parseDate(billDate(b))
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
       })
       setMonthTotal(thisMonth.reduce((sum, b) => sum + b.total, 0))
@@ -67,12 +68,12 @@ export default function Dashboard() {
               <li key={bill.id} className={`flex items-center justify-between px-4 py-3 ${i < recentBills.length - 1 ? 'border-b border-gray-50' : ''}`}>
                 <div>
                   <p className="text-sm font-medium text-gray-800">{bill.customerName}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{bill.items.map(i => i.name).join(' · ')}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{itemsOf(bill).map(i => i.name).join(' · ')}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-800">${Number(bill.total).toFixed(2)}</p>
                   <p className="text-xs text-gray-400">
-                    {format(new Date(bill.date + 'T00:00:00'), 'MMM d, yyyy')}
+                    {format(parseDate(billDate(bill)), 'MMM d, yyyy')}
                   </p>
                 </div>
               </li>
