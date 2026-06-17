@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+release/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
+
+# ──────────────────────────────────────────────────
+# ALL customer data is stored in the OS user-data
+# directory — NOT in this repo. No customer info,
+# bills, or settings ever touches these files.
+#
+# macOS:   ~/Library/Application Support/lawnscape-billing/
+# Windows: %APPDATA%\lawnscape-billing\
+# ──────────────────────────────────────────────────
