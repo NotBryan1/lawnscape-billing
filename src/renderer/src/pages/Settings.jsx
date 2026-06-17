@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Save, Upload, X, CheckCircle } from 'lucide-react'
+import { useSettings } from '../SettingsContext'
 
 export default function Settings() {
+  const { reloadSettings } = useSettings()
   const [form, setForm] = useState({ businessName: '', phone: '', email: '', logo: null })
   const [saved, setSaved] = useState(false)
 
@@ -16,6 +18,7 @@ export default function Settings() {
 
   async function handleSave() {
     await window.api.settings.save(form)
+    await reloadSettings()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
