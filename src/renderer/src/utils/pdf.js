@@ -1,9 +1,20 @@
 import { jsPDF } from 'jspdf'
+import { workDaysOf } from './bills'
 
-export async function generateBillPDF(bill, settings) {
-  const doc = new jsPDF()
+// Add a new page if there isn't room for `needed` mm of content; returns the y to use.
+function ensureSpace(doc, y, needed) {
+  if (y + needed > doc.internal.pageSize.getHeight() - 18) {
+    doc.addPage()
+    return 18
+  }
+  return y
+}
+
+// Render one invoice onto the current page of `doc`, starting at the top.
+function renderBill(doc, bill, settings) {
   const W = doc.internal.pageSize.getWidth()
   let y = 15
+  doc.setTextColor(0, 0, 0)
 
   // Logo + business header
   if (settings.logo) {
@@ -28,13 +39,20 @@ export async function generateBillPDF(bill, settings) {
   doc.line(14, y, W - 14, y)
   y += 8
 
-  // Invoice label + date
+  // Work days (one or many visits in the billing period)
+  const days = workDaysOf(bill)
+  const multiDay = days.length > 1
+
+  // Invoice label + date(s)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
   doc.text('INVOICE', 14, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.text(`Date: ${formatDate(bill.date)}`, W - 14, y, { align: 'right' })
+  const dateLabel = multiDay
+    ? `Dates: ${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`
+    : `Date: ${formatDate(days[0].date)}`
+  doc.text(dateLabel, W - 14, y, { align: 'right' })
   y += 12
 
   // Bill to
@@ -62,19 +80,36 @@ export async function generateBillPDF(bill, settings) {
   doc.setTextColor(0, 0, 0)
   y += 8
 
-  // Table rows
+  // Table rows — grouped by work day when there's more than one
   doc.setFont('helvetica', 'normal')
-  bill.items.forEach((item, i) => {
-    if (i % 2 === 0) {
-      doc.setFillColor(245, 248, 245)
-      doc.rect(14, y, W - 28, 7, 'F')
+  let rowIdx = 0
+  days.forEach(day => {
+    if (multiDay) {
+      y = ensureSpace(doc, y, 13)
+      doc.setFillColor(225, 236, 225)
+      doc.rect(14, y, W - 28, 6, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8.5)
+      doc.text(formatDate(day.date), 19, y + 4)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      y += 6
     }
-    doc.text(item.name, 19, y + 5)
-    doc.text(`$${Number(item.price).toFixed(2)}`, W - 19, y + 5, { align: 'right' })
-    y += 7
+    ;(day.items || []).forEach(item => {
+      y = ensureSpace(doc, y, 7)
+      if (rowIdx % 2 === 0) {
+        doc.setFillColor(245, 248, 245)
+        doc.rect(14, y, W - 28, 7, 'F')
+      }
+      doc.text(item.name, multiDay ? 24 : 19, y + 5)
+      doc.text(`$${Number(item.price).toFixed(2)}`, W - 19, y + 5, { align: 'right' })
+      y += 7
+      rowIdx++
+    })
   })
 
   // Total row
+  y = ensureSpace(doc, y, 20)
   doc.setLineWidth(0.4)
   doc.line(14, y, W - 14, y)
   y += 7
@@ -86,6 +121,7 @@ export async function generateBillPDF(bill, settings) {
 
   // Notes
   if (bill.notes && bill.notes.trim()) {
+    y = ensureSpace(doc, y, 20)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.text('Notes:', 14, y)
@@ -101,7 +137,22 @@ export async function generateBillPDF(bill, settings) {
   doc.setFontSize(9)
   doc.setTextColor(150, 150, 150)
   doc.text('Thank you for your business!', W / 2, footerY, { align: 'center' })
+}
 
+// One bill → a PDF buffer.
+export async function generateBillPDF(bill, settings) {
+  const doc = new jsPDF()
+  renderBill(doc, bill, settings)
+  return doc.output('arraybuffer')
+}
+
+// Many bills → a single PDF buffer, one invoice per page.
+export async function generateBillsPDF(bills, settings) {
+  const doc = new jsPDF()
+  bills.forEach((bill, i) => {
+    if (i > 0) doc.addPage()
+    renderBill(doc, bill, settings)
+  })
   return doc.output('arraybuffer')
 }
 
