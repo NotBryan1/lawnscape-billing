@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil } from 'lucide-react'
+import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
+import PaymentModal from '../components/PaymentModal'
 
 const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '' }
 
@@ -19,6 +20,7 @@ export default function Customers() {
   const [bills, setBills] = useState([])
   const [settings, setSettings] = useState({})
   const [sortBy, setSortBy] = useState('name')
+  const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [editId, setEditId] = useState(null)
@@ -69,7 +71,11 @@ export default function Customers() {
     return acc
   }, {})
 
-  const sorted = [...customers].sort(SORTS[sortBy].fn)
+  const q = search.trim().toLowerCase()
+  const sorted = [...customers]
+    .filter(c => !q || [c.name, c.address, c.city, c.state, c.zip, c.phone, c.email]
+      .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
+    .sort(SORTS[sortBy].fn)
   const detailCustomer = customers.find(c => c.id === detailId)
 
   return (
@@ -95,11 +101,33 @@ export default function Customers() {
         </div>
       </div>
 
+      {customers.length > 0 && (
+        <div className="relative mb-4">
+          <Search size={16} className="absolute left-3 top-2.5 text-gray-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search customers by name, address, phone…"
+            className="w-full border border-gray-200 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      )}
+
       {customers.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <User size={44} className="mx-auto mb-3 opacity-25" />
           <p className="font-medium text-sm">No customers saved yet</p>
           <p className="text-xs mt-1">Click "Add Customer" to get started</p>
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-12 text-center text-gray-400">
+          <Search size={36} className="mx-auto mb-2 opacity-25" />
+          <p className="text-sm font-medium">No customers match "{search}"</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -187,12 +215,8 @@ export default function Customers() {
 function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
   const navigate = useNavigate()
   const [previewBill, setPreviewBill] = useState(null)
+  const [paymentBill, setPaymentBill] = useState(null)
   const sorted = [...bills].sort((a, b) => billDate(a).localeCompare(billDate(b)))
-
-  async function togglePaid(bill) {
-    await window.api.bills.setPaid(bill.id, !bill.paid)
-    onChanged()
-  }
 
   async function reExport(bill) {
     const buf = await generateBillPDF(bill, settings)
@@ -220,6 +244,8 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
         <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
           {sorted.map(bill => {
             const days = workDaysOf(bill)
+            const status = paymentStatus(bill)
+            const pay = paymentOf(bill)
             return (
               <div key={bill.id} className="border border-gray-100 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -238,10 +264,16 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-gray-800">${Number(bill.total).toFixed(2)}</p>
+                    {pay.amountPaid > 0 && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {status === 'partial' ? `Paid $${pay.amountPaid.toFixed(2)}` : 'Paid in full'}
+                        {pay.method ? ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-50">
-                  <PaidToggle paid={bill.paid} onClick={() => togglePaid(bill)} />
+                  <PaymentToggle status={status} onClick={() => setPaymentBill(bill)} />
                   <div className="flex items-center gap-3">
                     <button onClick={() => setPreviewBill(bill)} className="text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1 font-medium">
                       <Eye size={13} /> Preview
@@ -263,21 +295,27 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
     {previewBill && (
       <PdfPreviewModal bill={previewBill} settings={settings} onClose={() => setPreviewBill(null)} downloadLabel="Download" />
     )}
+    {paymentBill && (
+      <PaymentModal bill={paymentBill} onClose={() => setPaymentBill(null)} onSaved={onChanged} />
+    )}
     </>
   )
 }
 
-function PaidToggle({ paid, onClick }) {
+const TOGGLE_STYLES = {
+  paid: 'bg-green-100 text-green-700 hover:bg-green-200',
+  partial: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+  unpaid: 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200',
+}
+const TOGGLE_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Record payment' }
+
+function PaymentToggle({ status, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors ${
-        paid
-          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-      }`}
+      className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors ${TOGGLE_STYLES[status]}`}
     >
-      {paid ? <><Check size={12} /> Paid</> : 'Mark as paid'}
+      {status === 'paid' && <Check size={12} />} {TOGGLE_LABELS[status]}
     </button>
   )
 }

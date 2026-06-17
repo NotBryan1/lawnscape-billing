@@ -53,6 +53,25 @@ function setBillPaid(id, paid) {
   writeJSON(billsPath(), list)
   return list[idx]
 }
+function setBillPayment(id, payment) {
+  const list = readAllBills()
+  const idx = list.findIndex(b => b.id === id)
+  if (idx < 0) return null
+  const total = Number(list[idx].total) || 0
+  // Clamp to [0, total] — a payment can't exceed what was billed.
+  const amountPaid = Math.min(Math.max(0, Number(payment.amountPaid) || 0), total)
+  list[idx] = {
+    ...list[idx],
+    payment: {
+      method: payment.method || '',
+      checkNumber: payment.checkNumber || '',
+      amountPaid,
+    },
+    paid: amountPaid > 0 && amountPaid >= total, // keep legacy flag in sync
+  }
+  writeJSON(billsPath(), list)
+  return list[idx]
+}
 
 // --- Settings ---
 function settingsPath() { return path.join(getDataDir(), 'settings.json') }
@@ -111,6 +130,7 @@ ipcMain.handle('bills:get-by-customer', (_, cid) => readAllBills().filter(b => b
 ipcMain.handle('bills:save', (_, b) => saveBill(b))
 ipcMain.handle('bills:delete', (_, id) => deleteBill(id))
 ipcMain.handle('bills:set-paid', (_, { id, paid }) => setBillPaid(id, paid))
+ipcMain.handle('bills:set-payment', (_, { id, payment }) => setBillPayment(id, payment))
 
 ipcMain.handle('settings:get', () => readSettings())
 ipcMain.handle('settings:save', (_, s) => saveSettings(s))

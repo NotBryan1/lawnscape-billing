@@ -16,11 +16,12 @@ function renderBill(doc, bill, settings) {
   let y = 15
   doc.setTextColor(0, 0, 0)
 
-  // Logo + business header
+  // Logo + business header — drawn in a fixed square box (equal width & height).
   if (settings.logo) {
     try {
       const fmt = settings.logo.includes('image/png') ? 'PNG' : 'JPEG'
-      doc.addImage(settings.logo, fmt, 14, y, 35, 18)
+      const LOGO = 24
+      doc.addImage(settings.logo, fmt, 14, y, LOGO, LOGO)
     } catch (_) { /* skip broken logo */ }
   }
 

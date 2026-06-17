@@ -3,13 +3,15 @@
 // top-level `date` + `items`; these helpers normalize both shapes so every
 // view can treat a bill the same way.
 
-const DEFAULT_SERVICES = ['Mowing', 'Mulch', 'Trimming']
+const DEFAULT_SERVICES = ['Lawn Mowing', 'Mulch']
 
-// Returns an array of { id, date, items } for a bill, regardless of whether
-// it uses the new `workDays` shape or the legacy single-day shape.
+// Returns an array of { id, date, items } for a bill, sorted oldest → newest,
+// regardless of whether it uses the new `workDays` shape or the legacy single-day shape.
 export function workDaysOf(bill) {
-  if (Array.isArray(bill.workDays) && bill.workDays.length) return bill.workDays
-  return [{ id: 'legacy', date: bill.date, items: bill.items || [] }]
+  const days = (Array.isArray(bill.workDays) && bill.workDays.length)
+    ? bill.workDays
+    : [{ id: 'legacy', date: bill.date, items: bill.items || [] }]
+  return [...days].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 }
 
 // All line items across every work day, flattened.
@@ -28,6 +30,37 @@ export function billDate(bill) {
 // Parse a 'yyyy-MM-dd' string into a local Date (avoids UTC off-by-one).
 export function parseDate(dateStr) {
   return new Date(dateStr + 'T00:00:00')
+}
+
+// Normalized payment info for a bill. Falls back to the legacy `paid` boolean
+// (a paid bill with no payment record is treated as paid in full).
+export function paymentOf(bill) {
+  const p = bill.payment || {}
+  const hasAmount = p.amountPaid != null && p.amountPaid !== ''
+  const amountPaid = hasAmount
+    ? Number(p.amountPaid) || 0
+    : (bill.paid ? Number(bill.total) || 0 : 0)
+  return { method: p.method || '', checkNumber: p.checkNumber || '', amountPaid }
+}
+
+// 'paid' | 'partial' | 'unpaid' for a bill, based on amount paid vs total.
+export function paymentStatus(bill) {
+  const total = Number(bill.total) || 0
+  const { amountPaid } = paymentOf(bill)
+  if (amountPaid <= 0) return 'unpaid'
+  if (amountPaid + 0.005 < total) return 'partial'
+  return 'paid'
+}
+
+export const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'check', label: 'Check' },
+  { value: 'zelle', label: 'Zelle' },
+  { value: 'other', label: 'Other' },
+]
+
+export function paymentMethodLabel(value) {
+  return PAYMENT_METHODS.find(m => m.value === value)?.label || ''
 }
 
 export { DEFAULT_SERVICES }

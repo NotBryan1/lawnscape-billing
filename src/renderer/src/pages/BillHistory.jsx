@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, ChevronUp } from 'lucide-react'
+import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
+import PaymentModal from '../components/PaymentModal'
 
 const PAGE = 40
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -20,6 +21,7 @@ export default function BillHistory() {
   const [visible, setVisible] = useState(PAGE)
   const [deleteId, setDeleteId] = useState(null)
   const [previewBill, setPreviewBill] = useState(null)
+  const [paymentBill, setPaymentBill] = useState(null)
   const [downloading, setDownloading] = useState(false)
 
   useEffect(() => { load() }, [])
@@ -38,11 +40,6 @@ export default function BillHistory() {
   async function handleDelete() {
     await window.api.bills.delete(deleteId)
     setDeleteId(null)
-    load()
-  }
-
-  async function togglePaid(bill) {
-    await window.api.bills.setPaid(bill.id, !bill.paid)
     load()
   }
 
@@ -74,11 +71,11 @@ export default function BillHistory() {
   if (filter) filtered = filtered.filter(b => b.customerId === filter)
   if (year) filtered = filtered.filter(b => billDate(b).startsWith(year + '-'))
   if (month) filtered = filtered.filter(b => billDate(b).slice(5, 7) === month)
-  // Chronological: oldest first, most recent at the bottom.
-  filtered = [...filtered].sort((a, b) => billDate(a).localeCompare(billDate(b)))
+  // Newest first, oldest at the bottom.
+  filtered = [...filtered].sort((a, b) => billDate(b).localeCompare(billDate(a)))
 
-  // With no filter, keep the most recent `visible` bills (still oldest-first within that window).
-  const shown = hasFilter ? filtered : filtered.slice(-visible)
+  // With no filter, page through the most recent bills.
+  const shown = hasFilter ? filtered : filtered.slice(0, visible)
   const canShowOlder = !hasFilter && filtered.length > visible
 
   // Group the shown bills under "Month Year" headers.
@@ -124,7 +121,7 @@ export default function BillHistory() {
 
       {!hasFilter && filtered.length > 0 && (
         <p className="text-xs text-gray-400 mb-3">
-          Showing the {Math.min(visible, filtered.length)} most recent of {filtered.length} bills · oldest first
+          Showing the {Math.min(visible, filtered.length)} most recent of {filtered.length} bills · newest first
         </p>
       )}
 
@@ -151,17 +148,6 @@ export default function BillHistory() {
         </div>
       ) : (
         <div className="space-y-6">
-          {canShowOlder && (
-            <div className="text-center pb-1">
-              <button
-                onClick={() => setVisible(v => v + PAGE)}
-                className="text-sm font-medium text-green-600 hover:text-green-700 border border-green-200 hover:bg-green-50 rounded-lg px-5 py-2 transition-colors inline-flex items-center gap-1.5"
-              >
-                <ChevronUp size={15} /> Show older bills ({filtered.length - visible} more)
-              </button>
-            </div>
-          )}
-
           {groups.map(group => (
             <div key={group.key}>
               <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">{group.key}</h2>
@@ -170,7 +156,7 @@ export default function BillHistory() {
                   <BillCard
                     key={bill.id}
                     bill={bill}
-                    onTogglePaid={() => togglePaid(bill)}
+                    onPayment={() => setPaymentBill(bill)}
                     onPreview={() => setPreviewBill(bill)}
                     onEdit={() => navigate('/new-bill', { state: { editBill: bill } })}
                     onReExport={() => reExport(bill)}
@@ -180,6 +166,17 @@ export default function BillHistory() {
               </div>
             </div>
           ))}
+
+          {canShowOlder && (
+            <div className="text-center pt-1">
+              <button
+                onClick={() => setVisible(v => v + PAGE)}
+                className="text-sm font-medium text-green-600 hover:text-green-700 border border-green-200 hover:bg-green-50 rounded-lg px-5 py-2 transition-colors inline-flex items-center gap-1.5"
+              >
+                <ChevronDown size={15} /> Show older bills ({filtered.length - visible} more)
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -199,13 +196,19 @@ export default function BillHistory() {
       {previewBill && (
         <PdfPreviewModal bill={previewBill} settings={settings} onClose={() => setPreviewBill(null)} downloadLabel="Download" />
       )}
+
+      {paymentBill && (
+        <PaymentModal bill={paymentBill} onClose={() => setPaymentBill(null)} onSaved={load} />
+      )}
     </div>
   )
 }
 
-function BillCard({ bill, onTogglePaid, onPreview, onEdit, onReExport, onDelete }) {
+function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) {
   const days = workDaysOf(bill)
   const multiDay = days.length > 1
+  const pay = paymentOf(bill)
+  const status = paymentStatus(bill)
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -213,7 +216,7 @@ function BillCard({ bill, onTogglePaid, onPreview, onEdit, onReExport, onDelete 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-semibold text-gray-800">{bill.customerName}</p>
-            <PaidBadge paid={bill.paid} onClick={onTogglePaid} />
+            <PaymentBadge status={status} onClick={onPayment} />
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
             {multiDay
@@ -233,6 +236,12 @@ function BillCard({ bill, onTogglePaid, onPreview, onEdit, onReExport, onDelete 
         </div>
         <div className="ml-4 text-right shrink-0">
           <p className="font-bold text-gray-800 text-lg">${Number(bill.total).toFixed(2)}</p>
+          {pay.amountPaid > 0 && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {status === 'partial' ? `Paid $${pay.amountPaid.toFixed(2)}` : 'Paid in full'}
+              {pay.method ? ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
+            </p>
+          )}
           <div className="flex gap-1 mt-2 justify-end">
             <button onClick={onPreview} title="Preview" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Eye size={15} />
@@ -253,18 +262,21 @@ function BillCard({ bill, onTogglePaid, onPreview, onEdit, onReExport, onDelete 
   )
 }
 
-function PaidBadge({ paid, onClick }) {
+const STATUS_STYLES = {
+  paid: 'bg-green-100 text-green-700 hover:bg-green-200',
+  partial: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+  unpaid: 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200',
+}
+const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
+
+function PaymentBadge({ status, onClick }) {
   return (
     <button
       onClick={onClick}
-      title="Click to toggle"
-      className={`text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${
-        paid
-          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-      }`}
+      title="Edit payment"
+      className={`text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${STATUS_STYLES[status]}`}
     >
-      {paid ? <><Check size={11} /> Paid</> : 'Unpaid'}
+      {status === 'paid' && <Check size={11} />} {STATUS_LABELS[status]}
     </button>
   )
 }

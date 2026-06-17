@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import NewBill from './pages/NewBill'
 import BillHistory from './pages/BillHistory'
+import Payments from './pages/Payments'
 import Settings from './pages/Settings'
 import { SettingsProvider } from './SettingsContext'
 
@@ -20,6 +21,7 @@ export default function App() {
               <Route path="/customers" element={<Customers />} />
               <Route path="/new-bill" element={<NewBill />} />
               <Route path="/history" element={<BillHistory />} />
+              <Route path="/payments" element={<Payments />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, DEFAULT_SERVICES } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, DEFAULT_SERVICES } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const uuid = () => crypto.randomUUID()
@@ -13,18 +13,18 @@ function baseTemplate() {
   return DEFAULT_SERVICES.map(name => ({ name, price: '', enabled: false, isDefault: true }))
 }
 
-// Build a price template from the customer's most recent bill so prices carry over.
+// Pre-fill services/prices from a customer's most recent bill so they carry over.
 function templateFromBill(bill) {
   const tpl = baseTemplate()
   if (!bill) return tpl
   const priceByName = {}
   itemsOf(bill).forEach(i => { priceByName[i.name] = i.price })
   const updated = tpl.map(t =>
-    priceByName[t.name] != null ? { ...t, price: String(priceByName[t.name]), enabled: true } : t
+    priceByName[t.name] != null ? { ...t, price: Number(priceByName[t.name]).toFixed(2), enabled: true } : t
   )
   const customs = Object.keys(priceByName)
     .filter(n => !DEFAULT_SERVICES.includes(n))
-    .map(n => ({ name: n, price: String(priceByName[n]), enabled: true, isDefault: false }))
+    .map(n => ({ name: n, price: Number(priceByName[n]).toFixed(2), enabled: true, isDefault: false }))
   return [...updated, ...customs]
 }
 
@@ -40,10 +40,10 @@ function daysFromBill(bill) {
     items: [
       ...DEFAULT_SERVICES.map(name => {
         const found = (d.items || []).find(i => i.name === name)
-        return { id: uuid(), name, price: found ? String(found.price) : '', enabled: !!found, isDefault: true }
+        return { id: uuid(), name, price: found ? Number(found.price).toFixed(2) : '', enabled: !!found, isDefault: true }
       }),
       ...(d.items || []).filter(i => !DEFAULT_SERVICES.includes(i.name)).map(i => ({
-        id: uuid(), name: i.name, price: String(i.price), enabled: true, isDefault: false,
+        id: uuid(), name: i.name, price: Number(i.price).toFixed(2), enabled: true, isDefault: false,
       })),
     ],
   }))
@@ -55,8 +55,9 @@ export default function NewBill() {
   const navigate = useNavigate()
   const location = useLocation()
   const editBill = location.state?.editBill || null
-  // In edit mode, skip the first customer-change reset so the loaded days survive.
-  const skipResetRef = useRef(!!editBill)
+  // Tracks which customer the current work days belong to, so we only reset on a
+  // genuine customer change (and survive React StrictMode's double-invoked effects).
+  const loadedForRef = useRef(editBill ? editBill.customerId : null)
 
   const [step, setStep] = useState(editBill ? 2 : 0)
   const [customers, setCustomers] = useState([])
@@ -70,7 +71,8 @@ export default function NewBill() {
   const [toast, setToast] = useState(null)
   const [previewBill, setPreviewBill] = useState(null)
   const [editId] = useState(editBill?.id || null)
-  const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, paid: editBill.paid } : null)
+  // Preserve the existing payment when editing (payment is edited in the Payments tab, not here).
+  const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, ...paymentOf(editBill) } : null)
 
   useEffect(() => {
     Promise.all([window.api.customers.getAll(), window.api.settings.get()]).then(([c, s]) => {
@@ -79,14 +81,19 @@ export default function NewBill() {
     })
   }, [])
 
-  // When the customer changes, seed one work day and pull in their last prices.
+  // When the customer changes, pre-fill the services, prices, and notes from their
+  // most recent bill so they carry over.
   useEffect(() => {
-    if (!selectedId) { setWorkDays([]); setTemplate(baseTemplate()); return }
+    if (!selectedId) {
+      setWorkDays([])
+      setTemplate(baseTemplate())
+      loadedForRef.current = null
+      return
+    }
 
-    // In edit mode the days are already loaded — just refresh the price template
-    // (used when adding a brand-new day) without discarding the loaded work days.
-    if (skipResetRef.current) {
-      skipResetRef.current = false
+    // Already initialized for this customer (edit-mode load, or StrictMode's second
+    // effect pass) — just refresh the template, keep the loaded work days and notes.
+    if (loadedForRef.current === selectedId) {
       window.api.bills.getByCustomer(selectedId).then(bills => {
         const last = bills.length ? [...bills].sort((a, b) => billDate(b).localeCompare(billDate(a)))[0] : null
         setTemplate(templateFromBill(last))
@@ -94,17 +101,17 @@ export default function NewBill() {
       return
     }
 
-    const optimistic = baseTemplate()
-    setTemplate(optimistic)
-    setWorkDays([dayFromTemplate(optimistic, today())])
-
+    // Genuine customer change → seed one day pre-filled from their last bill.
+    loadedForRef.current = selectedId
+    setTemplate(baseTemplate())
+    setWorkDays([dayFromTemplate(baseTemplate(), today())])
+    setNotes('')
     window.api.bills.getByCustomer(selectedId).then(bills => {
-      const last = bills.length
-        ? [...bills].sort((a, b) => billDate(b).localeCompare(billDate(a)))[0]
-        : null
+      const last = bills.length ? [...bills].sort((a, b) => billDate(b).localeCompare(billDate(a)))[0] : null
       const tpl = templateFromBill(last)
       setTemplate(tpl)
       setWorkDays(prev => (prev.length ? prev : [{ date: today() }]).map(d => dayFromTemplate(tpl, d.date || today())))
+      setNotes(last?.notes || '')
     })
   }, [selectedId])
 
@@ -123,13 +130,32 @@ export default function NewBill() {
   const addWorkDay = () => setWorkDays(prev => [...prev, dayFromTemplate(template, today())])
   const removeWorkDay = (dayId) => setWorkDays(prev => (prev.length > 1 ? prev.filter(d => d.id !== dayId) : prev))
 
+  // Normalize a price to two decimals on blur ("50" -> "50.00").
+  const normalizePrice = (dayId, itemId) => updateDay(dayId, d => ({
+    ...d,
+    items: d.items.map(i => {
+      if (i.id !== itemId || i.price === '' || i.price == null) return i
+      const n = parseFloat(i.price)
+      return { ...i, price: isNaN(n) ? '' : n.toFixed(2) }
+    }),
+  }))
+
   const enabledItems = (day) => day.items.filter(i => i.enabled && i.name.trim() && i.price !== '')
   const total = workDays.reduce((s, d) => s + enabledItems(d).reduce((ss, i) => ss + (parseFloat(i.price) || 0), 0), 0)
-  const totalEnabled = workDays.reduce((n, d) => n + enabledItems(d).length, 0)
+
+  // Every work day must have at least one selected service, each with an amount entered.
+  const dayComplete = (day) => {
+    const enabled = day.items.filter(i => i.enabled)
+    return enabled.length > 0 && enabled.every(i => i.name.trim() && i.price !== '' && !isNaN(parseFloat(i.price)))
+  }
+  const allDaysComplete = workDays.length > 0 && workDays.every(dayComplete)
 
   const canStep1 = !!selectedId
   const canStep2 = workDays.length > 0 && workDays.every(d => !!d.date)
-  const canSave = totalEnabled > 0 && !saving
+  const canSave = allDaysComplete && !saving
+
+  // Show the Services step oldest → newest, even if days were added out of order.
+  const orderedDays = [...workDays].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 
   function buildBill() {
     const cleanDays = workDays
@@ -139,11 +165,14 @@ export default function NewBill() {
         items: enabledItems(d).map(i => ({ name: i.name.trim(), price: parseFloat(i.price) })),
       }))
       .filter(d => d.items.length > 0)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '')) // store oldest → newest
     const flat = cleanDays.flatMap(d => d.items)
     const sum = flat.reduce((s, i) => s + i.price, 0)
     const primaryDate = [...cleanDays.map(d => d.date)].sort().slice(-1)[0]
+    // Preserve the existing payment when editing; new bills start unpaid.
+    const amountPaid = editId ? (editMeta.amountPaid || 0) : 0
     return {
-      id: uuid(),
+      id: editId || uuid(),
       customerId: customer.id,
       customerName: customer.name,
       customerAddress: customer.address || '',
@@ -157,8 +186,11 @@ export default function NewBill() {
       items: flat,
       total: sum,
       notes,
-      paid: editMeta ? !!editMeta.paid : false,
-      createdAt: editMeta ? editMeta.createdAt : new Date().toISOString(),
+      payment: editId
+        ? { method: editMeta.method, checkNumber: editMeta.checkNumber, amountPaid }
+        : { method: '', checkNumber: '', amountPaid: 0 },
+      paid: amountPaid > 0 && amountPaid >= sum,
+      createdAt: editId ? editMeta.createdAt : new Date().toISOString(),
       ...(editId ? { updatedAt: new Date().toISOString() } : {}),
     }
   }
@@ -291,7 +323,7 @@ export default function NewBill() {
       {/* STEP 3 — Services & Notes */}
       {step === 2 && (
         <div className="space-y-4">
-          {workDays.map((day, idx) => (
+          {orderedDays.map((day, idx) => (
             <Card
               key={day.id}
               label={
@@ -332,6 +364,7 @@ export default function NewBill() {
                         type="number"
                         value={item.price}
                         onChange={e => setPrice(day.id, item.id, e.target.value)}
+                        onBlur={() => normalizePrice(day.id, item.id)}
                         placeholder="0.00"
                         disabled={!item.enabled}
                         min="0"
@@ -347,6 +380,9 @@ export default function NewBill() {
                   </div>
                 ))}
               </div>
+              {!dayComplete(day) && (
+                <p className="text-xs text-amber-600 mt-2.5">Select at least one service and enter an amount for this day.</p>
+              )}
             </Card>
           ))}
 
@@ -390,8 +426,8 @@ export default function NewBill() {
                 <FileDown size={16} /> {saving ? 'Working…' : 'Save & PDF'}
               </button>
             </div>
-            {totalEnabled === 0 && (
-              <p className="text-xs text-gray-400 text-center mt-2">Check at least one service to save this bill.</p>
+            {!allDaysComplete && (
+              <p className="text-xs text-amber-600 text-center mt-2">Each work day needs at least one service with an amount.</p>
             )}
           </div>
         </div>
