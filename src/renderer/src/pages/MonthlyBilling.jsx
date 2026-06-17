@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, Check, Download, CheckCircle, Repeat, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
-import { itemsOf, billDate } from '../utils/bills'
+import { itemsOf, billDate, parseDate } from '../utils/bills'
 import { generateBillsPDF } from '../utils/pdf'
 
 const uuid = () => crypto.randomUUID()
 const today = () => format(new Date(), 'yyyy-MM-dd')
+const monthStart = () => format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
 
 // The services to recur from a customer's last bill (deduped by name, latest price).
 function recurringItems(bill) {
@@ -20,8 +21,8 @@ export default function MonthlyBilling() {
   const [customers, setCustomers] = useState([])
   const [bills, setBills] = useState([])
   const [settings, setSettings] = useState({})
-  const [bulkDate, setBulkDate] = useState(today())   // default service date
-  const [dates, setDates] = useState({})              // per-customer date overrides
+  const [fromDate, setFromDate] = useState(monthStart()) // service period start
+  const [toDate, setToDate] = useState(today())          // service period end
   const [selected, setSelected] = useState(() => new Set())
   const [generating, setGenerating] = useState(false)
   const [created, setCreated] = useState(null)
@@ -68,11 +69,9 @@ export default function MonthlyBilling() {
     setSelected(allSelected ? new Set() : new Set(eligible.map(e => e.customer.id)))
   }
 
-  const effectiveDate = (id) => dates[id] ?? bulkDate
-  const setCustomerDate = (id, value) => setDates(prev => ({ ...prev, [id]: value }))
+  const validRange = !!fromDate && !!toDate && fromDate <= toDate
 
   function buildBill(e) {
-    const date = effectiveDate(e.customer.id)
     return {
       id: uuid(),
       customerId: e.customer.id,
@@ -83,8 +82,10 @@ export default function MonthlyBilling() {
       customerZip: e.customer.zip || '',
       customerPhone: e.customer.phone || '',
       customerEmail: e.customer.email || '',
-      date,
-      workDays: [{ id: uuid(), date, items: e.items }],
+      date: toDate,
+      periodStart: fromDate,
+      periodEnd: toDate,
+      workDays: [{ id: uuid(), date: toDate, items: e.items }],
       items: e.items,
       total: e.total,
       notes: '',
@@ -95,7 +96,7 @@ export default function MonthlyBilling() {
   }
 
   async function generate() {
-    if (!selectedEligible.length || generating) return
+    if (!selectedEligible.length || !validRange || generating) return
     setGenerating(true)
     try {
       const made = []
@@ -113,7 +114,7 @@ export default function MonthlyBilling() {
   async function downloadAll() {
     if (!created?.length) return
     const buf = await generateBillsPDF(created, settings)
-    await window.api.pdf.save(buf, `bills-${bulkDate.slice(0, 7)}.pdf`)
+    await window.api.pdf.save(buf, `bills-${toDate.slice(0, 7)}.pdf`)
   }
 
   // --- Success view ---
@@ -125,7 +126,7 @@ export default function MonthlyBilling() {
           <CheckCircle size={48} className="mx-auto mb-3 text-green-500" />
           <h1 className="text-xl font-bold text-gray-800">Created {created.length} {created.length === 1 ? 'bill' : 'bills'}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            ${total.toFixed(2)} total
+            {format(parseDate(fromDate), 'MMM d')} – {format(parseDate(toDate), 'MMM d, yyyy')} · ${total.toFixed(2)} total
           </p>
           <div className="flex gap-2 justify-center mt-6">
             <button onClick={downloadAll} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 text-sm font-medium">
@@ -135,7 +136,7 @@ export default function MonthlyBilling() {
               View in Bill History <ChevronRight size={15} />
             </button>
           </div>
-          <button onClick={() => { setCreated(null); setBulkDate(today()); setDates({}) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">
+          <button onClick={() => { setCreated(null); setFromDate(monthStart()); setToDate(today()) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">
             Done
           </button>
         </div>
@@ -156,19 +157,36 @@ export default function MonthlyBilling() {
         </div>
       ) : (
         <>
-          {/* Default date */}
+          {/* Service period */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default service date</label>
-            <p className="text-xs text-gray-400 mb-2">Applies to everyone — adjust any customer's date individually below.</p>
-            <div className="relative inline-block">
-              <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
-              <input
-                type="date"
-                value={bulkDate}
-                onChange={e => setBulkDate(e.target.value)}
-                className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Service period</label>
+            <p className="text-xs text-gray-400 mb-3">The date range these bills cover — shown on every invoice.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative">
+                <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+                <input
+                  type="date"
+                  value={fromDate}
+                  max={toDate || undefined}
+                  onChange={e => setFromDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+              <span className="text-sm text-gray-400">to</span>
+              <div className="relative">
+                <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+                <input
+                  type="date"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={e => setToDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
             </div>
+            {!validRange && (
+              <p className="text-xs text-amber-600 mt-2">Pick a start date on or before the end date.</p>
+            )}
           </div>
 
           {/* Customer list */}
@@ -185,7 +203,7 @@ export default function MonthlyBilling() {
                 return (
                   <div
                     key={e.customer.id}
-                    className={`px-4 py-3 flex items-center gap-3 transition-colors ${isOn ? 'bg-green-50/50' : ''}`}
+                    className={`px-4 py-3 flex items-center gap-3 transition-colors ${isOn ? 'bg-green-50' : ''}`}
                   >
                     <button onClick={() => toggle(e.customer.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                       <span className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isOn ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
@@ -196,14 +214,6 @@ export default function MonthlyBilling() {
                         <p className="text-xs text-gray-400 truncate">{e.items.map(i => i.name).join(', ') || 'No services'}</p>
                       </div>
                     </button>
-                    <input
-                      type="date"
-                      value={effectiveDate(e.customer.id)}
-                      onChange={ev => setCustomerDate(e.customer.id, ev.target.value)}
-                      disabled={!isOn}
-                      title="Service date"
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs shrink-0 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:bg-gray-50 disabled:text-gray-300"
-                    />
                     <span className="text-sm font-semibold text-gray-700 shrink-0 w-16 text-right">${e.total.toFixed(2)}</span>
                   </div>
                 )
@@ -225,7 +235,7 @@ export default function MonthlyBilling() {
             </div>
             <button
               onClick={generate}
-              disabled={!selectedEligible.length || generating}
+              disabled={!selectedEligible.length || !validRange || generating}
               className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium text-sm shadow-sm"
             >
               <Repeat size={16} />

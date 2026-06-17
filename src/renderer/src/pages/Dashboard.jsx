@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, Users, DollarSign, FileText, ChevronRight, Wallet } from 'lucide-react'
+import { FilePlus, Users, DollarSign, FileText, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
-import { itemsOf, billDate, parseDate, paymentOf } from '../utils/bills'
+import { itemsOf, billDate, parseDate } from '../utils/bills'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [recentBills, setRecentBills] = useState([])
   const [customerCount, setCustomerCount] = useState(0)
   const [monthTotal, setMonthTotal] = useState(0)
-  const [paidLastMonth, setPaidLastMonth] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -25,16 +24,6 @@ export default function Dashboard() {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
       })
       setMonthTotal(thisMonth.reduce((sum, b) => sum + b.total, 0))
-
-      // Money actually collected on the previous calendar month's bills.
-      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const lastMonthPaid = bills
-        .filter(b => {
-          const d = parseDate(billDate(b))
-          return d.getMonth() === prev.getMonth() && d.getFullYear() === prev.getFullYear()
-        })
-        .reduce((sum, b) => sum + paymentOf(b).amountPaid, 0)
-      setPaidLastMonth(lastMonthPaid)
     }
     load()
   }, [])
@@ -52,10 +41,9 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <StatCard icon={<Users size={20} className="text-blue-600" />} bg="bg-blue-50" label="Customers" value={customerCount} />
         <StatCard icon={<DollarSign size={20} className="text-green-600" />} bg="bg-green-50" label="Billed This Month" value={`$${monthTotal.toFixed(2)}`} />
-        <StatCard icon={<Wallet size={20} className="text-emerald-600" />} bg="bg-emerald-50" label="Paid Last Month" value={`$${paidLastMonth.toFixed(2)}`} />
         <StatCard icon={<FileText size={20} className="text-purple-600" />} bg="bg-purple-50" label="Recent Bills" value={recentBills.length} />
       </div>
 

@@ -22,9 +22,17 @@ export function itemsOf(bill) {
 // The bill's primary date (the most recent work day) — used for sorting,
 // list display, and month/year filtering. Dates are 'yyyy-MM-dd' strings.
 export function billDate(bill) {
+  if (bill.periodEnd) return bill.periodEnd
   if (bill.date) return bill.date
   const dates = workDaysOf(bill).map(d => d.date).filter(Boolean).sort()
   return dates[dates.length - 1] || ''
+}
+
+// A service period range { start, end } for bills billed over a span (e.g. monthly
+// billing), or null for single-date/multi-day bills.
+export function billPeriod(bill) {
+  if (bill.periodStart && bill.periodEnd) return { start: bill.periodStart, end: bill.periodEnd }
+  return null
 }
 
 // Parse a 'yyyy-MM-dd' string into a local Date (avoids UTC off-by-one).

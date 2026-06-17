@@ -8,9 +8,11 @@ import BillHistory from './pages/BillHistory'
 import Payments from './pages/Payments'
 import Settings from './pages/Settings'
 import { SettingsProvider } from './SettingsContext'
+import { ThemeProvider } from './ThemeContext'
 
 export default function App() {
   return (
+    <ThemeProvider>
     <SettingsProvider>
       <HashRouter>
         <div className="flex h-screen bg-gray-50">
@@ -30,5 +32,6 @@ export default function App() {
         </div>
       </HashRouter>
     </SettingsProvider>
+    </ThemeProvider>
   )
 }

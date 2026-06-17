@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
@@ -207,6 +207,7 @@ export default function BillHistory() {
 function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) {
   const days = workDaysOf(bill)
   const multiDay = days.length > 1
+  const period = billPeriod(bill)
   const pay = paymentOf(bill)
   const status = paymentStatus(bill)
 
@@ -219,9 +220,11 @@ function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) 
             <PaymentBadge status={status} onClick={onPayment} />
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            {multiDay
-              ? `${days.length} work days · ${format(parseDate(days[0].date), 'MMM d')} – ${format(parseDate(days[days.length - 1].date), 'MMM d, yyyy')}`
-              : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
+            {period
+              ? `${format(parseDate(period.start), 'MMM d')} – ${format(parseDate(period.end), 'MMM d, yyyy')}`
+              : multiDay
+                ? `${days.length} work days · ${format(parseDate(days[0].date), 'MMM d')} – ${format(parseDate(days[days.length - 1].date), 'MMM d, yyyy')}`
+                : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {itemsOf(bill).map((item, i) => (

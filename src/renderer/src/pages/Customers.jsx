@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
@@ -305,6 +305,7 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
         <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
           {sorted.map(bill => {
             const days = workDaysOf(bill)
+            const period = billPeriod(bill)
             const status = paymentStatus(bill)
             const pay = paymentOf(bill)
             return (
@@ -312,8 +313,10 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800">
-                      {format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
-                      {days.length > 1 && <span className="text-gray-400 font-normal"> · {days.length} work days</span>}
+                      {period
+                        ? `${format(parseDate(period.start), 'MMM d')} – ${format(parseDate(period.end), 'MMM d, yyyy')}`
+                        : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
+                      {!period && days.length > 1 && <span className="text-gray-400 font-normal"> · {days.length} work days</span>}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {itemsOf(bill).map((item, i) => (

@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { workDaysOf } from './bills'
+import { workDaysOf, billPeriod } from './bills'
 
 // Add a new page if there isn't room for `needed` mm of content; returns the y to use.
 function ensureSpace(doc, y, needed) {
@@ -50,9 +50,12 @@ function renderBill(doc, bill, settings) {
   doc.text('INVOICE', 14, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  const dateLabel = multiDay
-    ? `Dates: ${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`
-    : `Date: ${formatDate(days[0].date)}`
+  const period = billPeriod(bill)
+  const dateLabel = period
+    ? `Service period: ${formatDate(period.start)} – ${formatDate(period.end)}`
+    : multiDay
+      ? `Dates: ${formatDate(days[0].date)} – ${formatDate(days[days.length - 1].date)}`
+      : `Date: ${formatDate(days[0].date)}`
   doc.text(dateLabel, W - 14, y, { align: 'right' })
   y += 12
 
