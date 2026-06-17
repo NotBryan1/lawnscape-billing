@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil } from 'lucide-react'
+import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
-const PAGE = 40
+const PAGE = 25
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export default function BillHistory() {
   const navigate = useNavigate()
   const [bills, setBills] = useState([])
-  const [customers, setCustomers] = useState([])
   const [settings, setSettings] = useState({})
-  const [filter, setFilter] = useState('')   // customerId
+  const [search, setSearch] = useState('')    // customer name (type-in)
   const [month, setMonth] = useState('')      // '01'..'12'
   const [year, setYear] = useState('')        // 'yyyy'
   const [visible, setVisible] = useState(PAGE)
@@ -27,13 +26,11 @@ export default function BillHistory() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [b, c, s] = await Promise.all([
+    const [b, s] = await Promise.all([
       window.api.bills.getAll(),
-      window.api.customers.getAll(),
       window.api.settings.get(),
     ])
     setBills(b)
-    setCustomers(c)
     setSettings(s)
   }
 
@@ -65,18 +62,20 @@ export default function BillHistory() {
   // Years present in the data (newest first), for the year dropdown.
   const years = [...new Set(bills.map(b => billDate(b).slice(0, 4)).filter(Boolean))].sort().reverse()
 
-  const hasFilter = !!(filter || month || year)
+  const q = search.trim().toLowerCase()
+  const hasFilter = !!(q || month || year)
+  // Picking a month/year shows the whole period; everything else still pages.
+  const dateFiltered = !!(month || year)
 
   let filtered = bills
-  if (filter) filtered = filtered.filter(b => b.customerId === filter)
+  if (q) filtered = filtered.filter(b => (b.customerName || '').toLowerCase().includes(q))
   if (year) filtered = filtered.filter(b => billDate(b).startsWith(year + '-'))
   if (month) filtered = filtered.filter(b => billDate(b).slice(5, 7) === month)
   // Newest first, oldest at the bottom.
   filtered = [...filtered].sort((a, b) => billDate(b).localeCompare(billDate(a)))
 
-  // With no filter, page through the most recent bills.
-  const shown = hasFilter ? filtered : filtered.slice(0, visible)
-  const canShowOlder = !hasFilter && filtered.length > visible
+  const shown = dateFiltered ? filtered : filtered.slice(0, visible)
+  const canShowOlder = !dateFiltered && filtered.length > visible
 
   // Group the shown bills under "Month Year" headers.
   const groups = []
@@ -89,12 +88,12 @@ export default function BillHistory() {
 
   // Labels for the "download all" action, based on the active filter.
   const monthName = month ? MONTHS[parseInt(month, 10) - 1] : ''
-  const customerName = filter ? (customers.find(c => c.id === filter)?.name || '') : ''
+  const searchLabel = search.trim()
   const descParts = []
-  if (customerName) descParts.push(`for ${customerName}`)
+  if (searchLabel) descParts.push(`matching "${searchLabel}"`)
   if (monthName || year) descParts.push(`in ${[monthName, year].filter(Boolean).join(' ')}`)
   const filterDescription = descParts.join(' ')
-  const downloadLabel = [customerName.replace(/\s+/g, '-'), monthName, year].filter(Boolean).join('-') || 'filtered'
+  const downloadLabel = [searchLabel.replace(/\s+/g, '-'), monthName, year].filter(Boolean).join('-') || 'filtered'
 
   return (
     <div className="p-6">
@@ -110,12 +109,15 @@ export default function BillHistory() {
             <option value="">All years</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </Dropdown>
-          <Dropdown value={filter} onChange={setFilter}>
-            <option value="">All customers</option>
-            {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </Dropdown>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-2.5 text-gray-400 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search customer…"
+              className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
         </div>
       </div>
 
@@ -151,7 +153,7 @@ export default function BillHistory() {
           {groups.map(group => (
             <div key={group.key}>
               <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">{group.key}</h2>
-              <div className="space-y-3">
+              <div className="bg-gray-200 rounded-xl p-2.5 space-y-2">
                 {group.bills.map(bill => (
                   <BillCard
                     key={bill.id}
