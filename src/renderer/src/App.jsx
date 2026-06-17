@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import NewBill from './pages/NewBill'
+import MonthlyBilling from './pages/MonthlyBilling'
 import BillHistory from './pages/BillHistory'
 import Payments from './pages/Payments'
 import Settings from './pages/Settings'
@@ -20,6 +21,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/new-bill" element={<NewBill />} />
+              <Route path="/monthly-billing" element={<MonthlyBilling />} />
               <Route path="/history" element={<BillHistory />} />
               <Route path="/payments" element={<Payments />} />
               <Route path="/settings" element={<Settings />} />

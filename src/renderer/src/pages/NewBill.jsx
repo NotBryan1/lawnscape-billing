@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye } from 'lucide-react'
+import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, DEFAULT_SERVICES } from '../utils/bills'
@@ -61,6 +61,7 @@ export default function NewBill() {
 
   const [step, setStep] = useState(editBill ? 2 : 0)
   const [customers, setCustomers] = useState([])
+  const [allBills, setAllBills] = useState([])
   const [settings, setSettings] = useState({})
   const [selectedId, setSelectedId] = useState(editBill?.customerId || '')
   const [search, setSearch] = useState('')
@@ -75,9 +76,10 @@ export default function NewBill() {
   const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, ...paymentOf(editBill) } : null)
 
   useEffect(() => {
-    Promise.all([window.api.customers.getAll(), window.api.settings.get()]).then(([c, s]) => {
+    Promise.all([window.api.customers.getAll(), window.api.settings.get(), window.api.bills.getAll()]).then(([c, s, b]) => {
       setCustomers(c)
       setSettings(s)
+      setAllBills(b)
     })
   }, [])
 
@@ -221,7 +223,19 @@ export default function NewBill() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Which customers already have a bill dated in the current calendar month.
+  const now = new Date()
+  const billedThisMonth = new Set(
+    allBills
+      .filter(b => {
+        const d = parseDate(billDate(b))
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      })
+      .map(b => b.customerId)
+  )
+
   const filteredCustomers = [...customers]
+    .filter(c => c.active !== false) // discontinued customers aren't billed
     .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
@@ -267,13 +281,21 @@ export default function NewBill() {
                         : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
                     }`}
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800">{c.name}</p>
                       {(c.city || c.address) && (
-                        <p className="text-xs text-gray-400">{[c.address, c.city, c.state].filter(Boolean).join(', ')}</p>
+                        <p className="text-xs text-gray-400 truncate">{[c.address, c.city, c.state].filter(Boolean).join(', ')}</p>
                       )}
                     </div>
-                    {selectedId === c.id && <Check size={16} className="text-green-600 shrink-0" />}
+                    {billedThisMonth.has(c.id) ? (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                        <Check size={11} /> Billed this month
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full shrink-0 ml-2">
+                        <X size={11} /> No bill yet
+                      </span>
+                    )}
                   </button>
                 ))}
                 {filteredCustomers.length === 0 && (

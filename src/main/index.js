@@ -147,6 +147,54 @@ ipcMain.handle('logo:select', async () => {
   return `data:image/${ext};base64,${data.toString('base64')}`
 })
 
+// --- Backup / Restore ---
+ipcMain.handle('data:export', async () => {
+  const payload = {
+    app: 'lawnscape-billing',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    customers: readCustomers(),
+    bills: readAllBills(),
+    settings: readSettings(),
+  }
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Back Up Data',
+    defaultPath: `lawnscape-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'Backup File', extensions: ['json'] }],
+  })
+  if (canceled || !filePath) return { ok: false, canceled: true }
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8')
+  shell.showItemInFolder(filePath)
+  return { ok: true, path: filePath }
+})
+
+ipcMain.handle('data:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Restore From Backup',
+    filters: [{ name: 'Backup File', extensions: ['json'] }],
+    properties: ['openFile'],
+  })
+  if (canceled || !filePaths[0]) return { ok: false, canceled: true }
+
+  let data
+  try {
+    data = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'))
+  } catch {
+    return { ok: false, error: 'That file could not be read.' }
+  }
+  if (!data || (!Array.isArray(data.customers) && !Array.isArray(data.bills))) {
+    return { ok: false, error: "That doesn't look like a Lawnscape backup file." }
+  }
+
+  if (Array.isArray(data.customers)) writeJSON(customersPath(), data.customers)
+  if (Array.isArray(data.bills)) writeJSON(billsPath(), data.bills)
+  if (data.settings) writeJSON(settingsPath(), data.settings)
+  return {
+    ok: true,
+    counts: { customers: data.customers?.length || 0, bills: data.bills?.length || 0 },
+  }
+})
+
 ipcMain.handle('pdf:save', async (_, { buffer, filename }) => {
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Invoice',

@@ -24,4 +24,8 @@ contextBridge.exposeInMainWorld('api', {
   pdf: {
     save: (buffer, filename) => ipcRenderer.invoke('pdf:save', { buffer, filename }),
   },
+  data: {
+    export: () => ipcRenderer.invoke('data:export'),
+    import: () => ipcRenderer.invoke('data:import'),
+  },
 })

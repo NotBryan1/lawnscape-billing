@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FilePlus, History, CreditCard, Settings, Leaf } from 'lucide-react'
+import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, Settings, Leaf } from 'lucide-react'
 import { useSettings } from '../SettingsContext'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/customers',  icon: Users,           label: 'Customers' },
   { to: '/new-bill',  icon: FilePlus,         label: 'New Bill' },
+  { to: '/monthly-billing', icon: Repeat,     label: 'Monthly Billing' },
   { to: '/history',   icon: History,          label: 'Bill History' },
   { to: '/payments',  icon: CreditCard,       label: 'Payments' },
   { to: '/settings',  icon: Settings,         label: 'Settings' },

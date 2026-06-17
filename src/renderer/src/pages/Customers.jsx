@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
@@ -8,6 +8,9 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
 const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '' }
+
+// A customer is active unless explicitly discontinued (older records have no flag).
+const isActive = (c) => c.active !== false
 
 const SORTS = {
   name: { label: 'Name (A–Z)', fn: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) },
@@ -62,6 +65,11 @@ export default function Customers() {
     load()
   }
 
+  async function setCustomerActive(c, active) {
+    await window.api.customers.save({ ...c, active })
+    load()
+  }
+
   function field(key) {
     return (v) => setForm(f => ({ ...f, [key]: v }))
   }
@@ -72,10 +80,12 @@ export default function Customers() {
   }, {})
 
   const q = search.trim().toLowerCase()
-  const sorted = [...customers]
+  const visible = [...customers]
     .filter(c => !q || [c.name, c.address, c.city, c.state, c.zip, c.phone, c.email]
       .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
     .sort(SORTS[sortBy].fn)
+  const activeList = visible.filter(isActive)
+  const inactiveList = visible.filter(c => !isActive(c))
   const detailCustomer = customers.find(c => c.id === detailId)
 
   return (
@@ -124,45 +134,52 @@ export default function Customers() {
           <p className="font-medium text-sm">No customers saved yet</p>
           <p className="text-xs mt-1">Click "Add Customer" to get started</p>
         </div>
-      ) : sorted.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-12 text-center text-gray-400">
           <Search size={36} className="mx-auto mb-2 opacity-25" />
           <p className="text-sm font-medium">No customers match "{search}"</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {sorted.map(c => {
-            const cBills = billsByCustomer[c.id] || []
-            const unpaid = cBills.filter(b => !b.paid).length
-            return (
-              <div key={c.id} className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex items-start justify-between hover:border-green-200 transition-colors">
-                <button onClick={() => setDetailId(c.id)} className="text-left flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800">{c.name}</p>
-                  {c.address && (
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      {[c.address, c.city, c.state, c.zip].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                    {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
-                    {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
-                    <span className="text-xs text-green-700 font-medium">
-                      {cBills.length} {cBills.length === 1 ? 'bill' : 'bills'}
-                      {unpaid > 0 && <span className="text-amber-600"> · {unpaid} unpaid</span>}
-                    </span>
-                  </div>
-                </button>
-                <div className="flex gap-1 mt-0.5 shrink-0">
-                  <button onClick={() => openEdit(c)} title="Edit" className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                    <Edit2 size={15} />
-                  </button>
-                  <button onClick={() => setDeleteId(c.id)} title="Delete" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            {activeList.map(c => (
+              <CustomerRow
+                key={c.id}
+                customer={c}
+                bills={billsByCustomer[c.id] || []}
+                active
+                onOpen={() => setDetailId(c.id)}
+                onEdit={() => openEdit(c)}
+                onDelete={() => setDeleteId(c.id)}
+                onToggleActive={() => setCustomerActive(c, false)}
+              />
+            ))}
+            {activeList.length === 0 && (
+              <p className="text-sm text-gray-400 px-1 py-4 text-center">No active customers{q ? ' match your search' : ''}.</p>
+            )}
+          </div>
+
+          {inactiveList.length > 0 && (
+            <div>
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                Discontinued ({inactiveList.length})
+              </h2>
+              <div className="space-y-2">
+                {inactiveList.map(c => (
+                  <CustomerRow
+                    key={c.id}
+                    customer={c}
+                    bills={billsByCustomer[c.id] || []}
+                    active={false}
+                    onOpen={() => setDetailId(c.id)}
+                    onEdit={() => openEdit(c)}
+                    onDelete={() => setDeleteId(c.id)}
+                    onToggleActive={() => setCustomerActive(c, true)}
+                  />
+                ))}
               </div>
-            )
-          })}
+            </div>
+          )}
         </div>
       )}
 
@@ -208,6 +225,50 @@ export default function Customers() {
           </div>
         </Modal>
       )}
+    </div>
+  )
+}
+
+function CustomerRow({ customer: c, bills, active, onOpen, onEdit, onDelete, onToggleActive }) {
+  const unpaid = bills.filter(b => !b.paid).length
+  return (
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex items-start justify-between transition-colors ${active ? 'hover:border-green-200' : 'opacity-70'}`}>
+      <button onClick={onOpen} className="text-left flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-gray-800">{c.name}</p>
+          {!active && <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Discontinued</span>}
+        </div>
+        {c.address && (
+          <p className="text-sm text-gray-500 mt-0.5">
+            {[c.address, c.city, c.state, c.zip].filter(Boolean).join(', ')}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+          {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
+          {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
+          <span className="text-xs text-green-700 font-medium">
+            {bills.length} {bills.length === 1 ? 'bill' : 'bills'}
+            {unpaid > 0 && <span className="text-amber-600"> · {unpaid} unpaid</span>}
+          </span>
+        </div>
+      </button>
+      <div className="flex gap-1 mt-0.5 shrink-0">
+        {active ? (
+          <button onClick={onToggleActive} title="Discontinue service" className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+            <UserX size={15} />
+          </button>
+        ) : (
+          <button onClick={onToggleActive} title="Reactivate" className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+            <UserCheck size={15} />
+          </button>
+        )}
+        <button onClick={onEdit} title="Edit" className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+          <Edit2 size={15} />
+        </button>
+        <button onClick={onDelete} title="Delete" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <Trash2 size={15} />
+        </button>
+      </div>
     </div>
   )
 }
