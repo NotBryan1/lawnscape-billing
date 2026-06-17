@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
     getByCustomer: (cid) => ipcRenderer.invoke('bills:get-by-customer', cid),
     save: (b) => ipcRenderer.invoke('bills:save', b),
     delete: (id) => ipcRenderer.invoke('bills:delete', id),
+    setPaid: (id, paid) => ipcRenderer.invoke('bills:set-paid', { id, paid }),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

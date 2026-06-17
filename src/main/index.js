@@ -45,6 +45,14 @@ function saveBill(bill) {
 function deleteBill(id) {
   writeJSON(billsPath(), readAllBills().filter(b => b.id !== id))
 }
+function setBillPaid(id, paid) {
+  const list = readAllBills()
+  const idx = list.findIndex(b => b.id === id)
+  if (idx < 0) return null
+  list[idx] = { ...list[idx], paid: !!paid }
+  writeJSON(billsPath(), list)
+  return list[idx]
+}
 
 // --- Settings ---
 function settingsPath() { return path.join(getDataDir(), 'settings.json') }
@@ -69,6 +77,7 @@ function createWindow() {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      plugins: true, // enables Chromium's built-in PDF viewer for in-app bill previews
     }
   })
 
@@ -101,6 +110,7 @@ ipcMain.handle('bills:get-all', () => readAllBills())
 ipcMain.handle('bills:get-by-customer', (_, cid) => readAllBills().filter(b => b.customerId === cid))
 ipcMain.handle('bills:save', (_, b) => saveBill(b))
 ipcMain.handle('bills:delete', (_, id) => deleteBill(id))
+ipcMain.handle('bills:set-paid', (_, { id, paid }) => setBillPaid(id, paid))
 
 ipcMain.handle('settings:get', () => readSettings())
 ipcMain.handle('settings:save', (_, s) => saveSettings(s))
