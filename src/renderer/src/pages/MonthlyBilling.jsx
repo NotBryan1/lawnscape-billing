@@ -64,8 +64,10 @@ export default function MonthlyBilling() {
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() + 1 - i)
 
   const visitsFor = (id, auto) => overrides[id] ?? auto
+  const ym = `${year}-${String(month + 1).padStart(2, '0')}` // selected month, e.g. "2026-06"
 
-  // Each active customer with a past bill, plus their recurring services and visit dates.
+  // Each active customer with a past bill, plus their recurring services, visit
+  // dates, and whether they already have a bill for the selected month.
   const rows = customers
     .filter(c => c.active !== false)
     .map(customer => {
@@ -76,20 +78,22 @@ export default function MonthlyBilling() {
       const perVisit = items.reduce((s, i) => s + i.price, 0)
       const auto = visitDates(customer.serviceDay, fromDate, toDate)
       const visits = visitsFor(customer.id, auto)
-      return { customer, items, perVisit, visits, total: perVisit * visits.length, serviceDay: customer.serviceDay || '' }
+      const billed = theirs.some(b => billDate(b).slice(0, 7) === ym)
+      return { customer, items, perVisit, visits, total: perVisit * visits.length, serviceDay: customer.serviceDay || '', billed }
     })
     .filter(Boolean)
     .sort((a, b) => a.customer.name.localeCompare(b.customer.name))
 
   const q = search.trim().toLowerCase()
-  const displayRows = rows
-    .filter(r => !dayFilter || r.serviceDay === dayFilter)
-    .filter(r => !q || r.customer.name.toLowerCase().includes(q))
+  const matches = r => (!dayFilter || r.serviceDay === dayFilter) && (!q || r.customer.name.toLowerCase().includes(q))
+  const displayToBill = rows.filter(r => !r.billed && matches(r))
+  const displayBilled = rows.filter(r => r.billed && matches(r))
 
   const noHistoryCount = customers.filter(c => c.active !== false).length - rows.length
-  const selectedRows = rows.filter(r => selected.has(r.customer.id) && r.visits.length > 0)
+  // Only un-billed customers can be selected/generated (no double-billing).
+  const selectedRows = rows.filter(r => !r.billed && selected.has(r.customer.id) && r.visits.length > 0)
   const grandTotal = selectedRows.reduce((s, r) => s + r.total, 0)
-  const displayBillable = displayRows.filter(r => r.visits.length > 0)
+  const displayBillable = displayToBill.filter(r => r.visits.length > 0)
   const allSelected = displayBillable.length > 0 && displayBillable.every(r => selected.has(r.customer.id))
 
   function toggle(id) {
@@ -166,6 +170,7 @@ export default function MonthlyBilling() {
         await window.api.bills.save(bill)
         made.push(bill)
       }
+      setBills(await window.api.bills.getAll()) // refresh so they show as already billed
       setCreated(made)
     } finally {
       setGenerating(false)
@@ -264,9 +269,11 @@ export default function MonthlyBilling() {
               <span className="text-xs text-gray-400">{selectedRows.length} selected</span>
             </div>
             <div className="divide-y divide-gray-50 max-h-[45vh] overflow-y-auto">
-              {displayRows.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No customers match.</p>
-              ) : displayRows.map(r => {
+              {displayToBill.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  {displayBilled.length ? 'Everyone matching is already billed for this month.' : 'No customers to bill.'}
+                </p>
+              ) : displayToBill.map(r => {
                 const id = r.customer.id
                 const canBill = r.visits.length > 0
                 const isOn = canBill && selected.has(id)
@@ -323,6 +330,29 @@ export default function MonthlyBilling() {
               })}
             </div>
           </div>
+
+          {/* Already billed this month — shown separately so they can't be billed twice */}
+          {displayBilled.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
+                <Check size={14} className="text-green-600" />
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Already billed for {MONTHS[month]} {year}</span>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-[30vh] overflow-y-auto">
+                {displayBilled.map(r => (
+                  <div key={r.customer.id} className="px-4 py-3 flex items-center justify-between gap-3 opacity-70">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{r.customer.name}</p>
+                      <p className="text-xs text-gray-400">{r.serviceDay ? `${r.serviceDay}s` : 'No set day'}</p>
+                    </div>
+                    <span className="text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                      <Check size={11} /> Billed
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {noHistoryCount > 0 && (
             <p className="text-xs text-gray-400 mb-4">

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye, X } from 'lucide-react'
+import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye, X, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, DEFAULT_SERVICES, WEEKDAYS } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, billSignature, DEFAULT_SERVICES, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const uuid = () => crypto.randomUUID()
@@ -72,6 +72,7 @@ export default function NewBill() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const [previewBill, setPreviewBill] = useState(null)
+  const [dupPending, setDupPending] = useState(null)
   const [editId] = useState(editBill?.id || null)
   // Preserve the existing payment when editing (payment is edited in the Payments tab, not here).
   const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, periodStart: editBill.periodStart, periodEnd: editBill.periodEnd, ...paymentOf(editBill) } : null)
@@ -199,11 +200,19 @@ export default function NewBill() {
     }
   }
 
-  async function save(withPdf) {
+  function save(withPdf) {
     if (!canSave) return
+    const bill = buildBill()
+    // Warn if an existing bill has the same customer, dates, and services.
+    const sig = billSignature(bill)
+    const dup = allBills.some(b => b.id !== editId && billSignature(b) === sig)
+    if (dup) { setDupPending({ bill, withPdf }); return }
+    doSave(bill, withPdf)
+  }
+
+  async function doSave(bill, withPdf) {
     setSaving(true)
     try {
-      const bill = buildBill()
       await window.api.bills.save(bill)
       if (withPdf) {
         const buf = await generateBillPDF(bill, settings)
@@ -496,6 +505,29 @@ export default function NewBill() {
           onDownload={() => { setPreviewBill(null); save(true) }}
           downloadLabel="Save & Download"
         />
+      )}
+
+      {dupPending && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={() => setDupPending(null)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle size={18} className="text-amber-500" />
+              <h3 className="font-semibold text-gray-800">Possible duplicate</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              {dupPending.bill.customerName} already has a bill with the same dates and services. Create this one anyway?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDupPending(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm">Cancel</button>
+              <button
+                onClick={() => { const { bill, withPdf } = dupPending; setDupPending(null); doSave(bill, withPdf) }}
+                className="flex-1 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600"
+              >
+                Create anyway
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -3,7 +3,7 @@
 // top-level `date` + `items`; these helpers normalize both shapes so every
 // view can treat a bill the same way.
 
-const DEFAULT_SERVICES = ['Lawn Mowing', 'Mulch']
+const DEFAULT_SERVICES = ['Lawn Mowing', 'Mulch', 'Maintenance']
 
 // Days of the week a customer can be assigned for recurring service.
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -47,6 +47,14 @@ export function billPeriod(bill) {
 // Parse a 'yyyy-MM-dd' string into a local Date (avoids UTC off-by-one).
 export function parseDate(dateStr) {
   return new Date(dateStr + 'T00:00:00')
+}
+
+// A signature for detecting duplicate bills: same customer, same work dates,
+// and same set of services ("same dates and jobs").
+export function billSignature(bill) {
+  const dates = workDaysOf(bill).map(d => d.date).filter(Boolean).sort().join(',')
+  const jobs = [...new Set(itemsOf(bill).map(i => (i.name || '').trim().toLowerCase()).filter(Boolean))].sort().join(',')
+  return `${bill.customerId}|${dates}|${jobs}`
 }
 
 // Normalized payment info for a bill. Falls back to the legacy `paid` boolean
