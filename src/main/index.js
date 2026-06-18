@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { join } from 'path'
 import fs from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import { autoUpdater } from 'electron-updater'
+import * as XLSX from 'xlsx'
 
 function getDataDir() {
   const dir = path.join(app.getPath('userData'), 'data')
@@ -31,6 +33,44 @@ function saveCustomer(customer) {
 }
 function deleteCustomer(id) {
   writeJSON(customersPath(), readCustomers().filter(c => c.id !== id))
+}
+
+// --- Customer spreadsheet import ---
+const DAY_NORMAL = {
+  mon: 'Monday', monday: 'Monday', tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+  wed: 'Wednesday', weds: 'Wednesday', wednesday: 'Wednesday', thu: 'Thursday', thur: 'Thursday',
+  thurs: 'Thursday', thursday: 'Thursday', fri: 'Friday', friday: 'Friday',
+  sat: 'Saturday', saturday: 'Saturday', sun: 'Sunday', sunday: 'Sunday',
+}
+function normalizeDay(s) {
+  return DAY_NORMAL[String(s).toLowerCase().trim()] || ''
+}
+function parseCustomersFromSheet(filePath) {
+  const wb = XLSX.readFile(filePath)
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+  const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '')
+  return rows
+    .map(row => {
+      const get = (...keys) => {
+        for (const k of Object.keys(row)) {
+          const nk = norm(k)
+          if (keys.some(key => nk === key || nk.includes(key))) return String(row[k]).trim()
+        }
+        return ''
+      }
+      return {
+        name: get('name', 'customer', 'fullname'),
+        address: get('address', 'street'),
+        city: get('city'),
+        state: get('state'),
+        zip: get('zip', 'postal'),
+        phone: get('phone', 'tel'),
+        email: get('email'),
+        serviceDay: normalizeDay(get('serviceday', 'day')),
+      }
+    })
+    .filter(c => c.name)
 }
 
 // --- Bills ---
@@ -132,6 +172,28 @@ app.on('window-all-closed', () => {
 ipcMain.handle('customers:get-all', () => readCustomers())
 ipcMain.handle('customers:save', (_, c) => saveCustomer(c))
 ipcMain.handle('customers:delete', (_, id) => deleteCustomer(id))
+
+ipcMain.handle('customers:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Import Customers',
+    filters: [{ name: 'Spreadsheet', extensions: ['xlsx', 'xls', 'csv'] }],
+    properties: ['openFile'],
+  })
+  if (canceled || !filePaths[0]) return { canceled: true }
+  try {
+    return { ok: true, customers: parseCustomersFromSheet(filePaths[0]) }
+  } catch {
+    return { ok: false, error: 'That file could not be read as a spreadsheet.' }
+  }
+})
+
+ipcMain.handle('customers:bulk-add', (_, list) => {
+  const existing = readCustomers()
+  const now = new Date().toISOString()
+  const added = (list || []).map(c => ({ ...c, id: randomUUID(), active: true, createdAt: now }))
+  writeJSON(customersPath(), [...existing, ...added])
+  return added.length
+})
 
 ipcMain.handle('bills:get-all', () => readAllBills())
 ipcMain.handle('bills:get-by-customer', (_, cid) => readAllBills().filter(b => b.customerId === cid))

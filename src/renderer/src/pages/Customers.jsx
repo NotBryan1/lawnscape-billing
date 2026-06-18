@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays } from 'lucide-react'
+import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays, UserPlus, FileSpreadsheet, CheckCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
@@ -30,6 +30,10 @@ export default function Customers() {
   const [editId, setEditId] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
   const [detailId, setDetailId] = useState(null)
+  const [showChoice, setShowChoice] = useState(false)
+  const [importPreview, setImportPreview] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -69,6 +73,27 @@ export default function Customers() {
   async function setCustomerActive(c, active) {
     await window.api.customers.save({ ...c, active })
     load()
+  }
+
+  async function handleImport() {
+    setShowChoice(false)
+    const res = await window.api.customers.import()
+    if (res?.ok) setImportPreview(res.customers)
+    else if (res && !res.canceled) { setImportMsg(res.error || 'Import failed.'); setTimeout(() => setImportMsg(null), 3500) }
+  }
+
+  async function confirmImport() {
+    if (!importPreview?.length || importing) return
+    setImporting(true)
+    try {
+      const n = await window.api.customers.bulkAdd(importPreview)
+      setImportPreview(null)
+      setImportMsg(`Imported ${n} ${n === 1 ? 'customer' : 'customers'}.`)
+      await load()
+      setTimeout(() => setImportMsg(null), 3500)
+    } finally {
+      setImporting(false)
+    }
   }
 
   function field(key) {
@@ -118,7 +143,7 @@ export default function Customers() {
             </select>
             <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
           </div>
-          <button onClick={openAdd} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm">
+          <button onClick={() => setShowChoice(true)} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm">
             <Plus size={16} /> Add Customer
           </button>
         </div>
@@ -205,6 +230,70 @@ export default function Customers() {
           onClose={() => setDetailId(null)}
           onChanged={load}
         />
+      )}
+
+      {importMsg && (
+        <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg z-[60] flex items-center gap-2 text-sm font-medium">
+          <CheckCircle size={16} /> {importMsg}
+        </div>
+      )}
+
+      {/* Add choice: one customer or import a spreadsheet */}
+      {showChoice && (
+        <Modal title="Add customers" onClose={() => setShowChoice(false)}>
+          <div className="space-y-2.5">
+            <button onClick={() => { setShowChoice(false); openAdd() }} className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/40 text-left transition-colors">
+              <span className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0"><UserPlus size={18} className="text-green-600" /></span>
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Add a customer</span>
+                <span className="block text-xs text-gray-400">Enter one customer's details</span>
+              </span>
+            </button>
+            <button onClick={handleImport} className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/40 text-left transition-colors">
+              <span className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0"><FileSpreadsheet size={18} className="text-blue-600" /></span>
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Import from spreadsheet</span>
+                <span className="block text-xs text-gray-400">Upload an Excel or CSV list of customers</span>
+              </span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+            Spreadsheet columns (any order): Name, Address, City, State, Zip, Phone, Email, Service Day.
+          </p>
+        </Modal>
+      )}
+
+      {/* Import preview */}
+      {importPreview && (
+        <Modal title="Import customers" onClose={() => setImportPreview(null)} wide>
+          {importPreview.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">
+              No customers were found. Make sure the spreadsheet has a <span className="font-medium text-gray-700">Name</span> column.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-3">
+                Found <span className="font-semibold">{importPreview.length}</span> {importPreview.length === 1 ? 'customer' : 'customers'} — review and import:
+              </p>
+              <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                {importPreview.map((c, i) => (
+                  <div key={i} className="border border-gray-100 rounded-lg px-3 py-2">
+                    <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {[c.serviceDay && `${c.serviceDay}s`, [c.address, c.city, c.state, c.zip].filter(Boolean).join(', '), c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setImportPreview(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button onClick={confirmImport} disabled={importPreview.length === 0 || importing} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
+              {importing ? 'Importing…' : `Import ${importPreview.length} ${importPreview.length === 1 ? 'customer' : 'customers'}`}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* Add / Edit Modal */}

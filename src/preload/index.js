@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('api', {
     getAll: () => ipcRenderer.invoke('customers:get-all'),
     save: (c) => ipcRenderer.invoke('customers:save', c),
     delete: (id) => ipcRenderer.invoke('customers:delete', id),
+    import: () => ipcRenderer.invoke('customers:import'),
+    bulkAdd: (list) => ipcRenderer.invoke('customers:bulk-add', list),
   },
   bills: {
     getAll: () => ipcRenderer.invoke('bills:get-all'),
