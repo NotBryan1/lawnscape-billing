@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { join } from 'path'
 import fs from 'fs'
 import path from 'path'
+import { autoUpdater } from 'electron-updater'
 
 function getDataDir() {
   const dir = path.join(app.getPath('userData'), 'data')
@@ -111,6 +112,13 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+
+  // Check for updates on Windows only. Mac auto-update needs a paid signing
+  // certificate, so Mac stays on the manual "drag to replace" flow.
+  if (app.isPackaged && process.platform === 'win32') {
+    autoUpdater.checkForUpdatesAndNotify()
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
