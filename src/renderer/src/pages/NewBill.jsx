@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Trash2, FileDown, CheckCircle, Check, ArrowLeft, ArrowRight, Calendar, Save, Search, Eye, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, DEFAULT_SERVICES } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, DEFAULT_SERVICES, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const uuid = () => crypto.randomUUID()
@@ -65,6 +65,7 @@ export default function NewBill() {
   const [settings, setSettings] = useState({})
   const [selectedId, setSelectedId] = useState(editBill?.customerId || '')
   const [search, setSearch] = useState('')
+  const [dayFilter, setDayFilter] = useState('')
   const [template, setTemplate] = useState(() => (editBill ? templateFromBill(editBill) : baseTemplate()))
   const [workDays, setWorkDays] = useState(() => (editBill ? daysFromBill(editBill) : []))
   const [notes, setNotes] = useState(editBill?.notes || '')
@@ -73,7 +74,7 @@ export default function NewBill() {
   const [previewBill, setPreviewBill] = useState(null)
   const [editId] = useState(editBill?.id || null)
   // Preserve the existing payment when editing (payment is edited in the Payments tab, not here).
-  const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, ...paymentOf(editBill) } : null)
+  const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, periodStart: editBill.periodStart, periodEnd: editBill.periodEnd, ...paymentOf(editBill) } : null)
 
   useEffect(() => {
     Promise.all([window.api.customers.getAll(), window.api.settings.get(), window.api.bills.getAll()]).then(([c, s, b]) => {
@@ -193,6 +194,7 @@ export default function NewBill() {
         : { method: '', checkNumber: '', amountPaid: 0 },
       paid: amountPaid > 0 && amountPaid >= sum,
       createdAt: editId ? editMeta.createdAt : new Date().toISOString(),
+      ...(editId && editMeta.periodStart ? { periodStart: editMeta.periodStart, periodEnd: editMeta.periodEnd } : {}),
       ...(editId ? { updatedAt: new Date().toISOString() } : {}),
     }
   }
@@ -236,6 +238,7 @@ export default function NewBill() {
 
   const filteredCustomers = [...customers]
     .filter(c => c.active !== false) // discontinued customers aren't billed
+    .filter(c => !dayFilter || c.serviceDay === dayFilter)
     .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
@@ -261,14 +264,24 @@ export default function NewBill() {
             </p>
           ) : (
             <>
-              <div className="relative mb-3">
-                <Search size={15} className="absolute left-3 top-2.5 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search customers…"
-                  className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3 top-2.5 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search customers…"
+                    className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                <select
+                  value={dayFilter}
+                  onChange={e => setDayFilter(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400 shrink-0"
+                >
+                  <option value="">All days</option>
+                  {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
                 {filteredCustomers.map(c => (

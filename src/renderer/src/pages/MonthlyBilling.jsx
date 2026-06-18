@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Check, Download, CheckCircle, Repeat, ChevronRight } from 'lucide-react'
+import { Calendar, Check, Download, CheckCircle, Repeat, ChevronRight, ChevronDown, Search, Plus, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
-import { itemsOf, billDate, parseDate } from '../utils/bills'
+import { itemsOf, billDate, parseDate, weekdayIndex, WEEKDAYS } from '../utils/bills'
 import { generateBillsPDF } from '../utils/pdf'
 
 const uuid = () => crypto.randomUUID()
-const today = () => format(new Date(), 'yyyy-MM-dd')
-const monthStart = () => format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 // The services to recur from a customer's last bill (deduped by name, latest price).
 function recurringItems(bill) {
@@ -16,14 +15,33 @@ function recurringItems(bill) {
   return Object.entries(byName).map(([name, price]) => ({ name, price }))
 }
 
+// Every date in [from, to] on the customer's service day. No set day → single visit on the end date.
+function visitDates(serviceDay, from, to) {
+  const target = weekdayIndex(serviceDay)
+  if (target < 0) return [to]
+  const out = []
+  const d = parseDate(from)
+  const end = parseDate(to)
+  while (d <= end) {
+    if (d.getDay() === target) out.push(format(d, 'yyyy-MM-dd'))
+    d.setDate(d.getDate() + 1)
+  }
+  return out
+}
+
 export default function MonthlyBilling() {
   const navigate = useNavigate()
+  const now = new Date()
   const [customers, setCustomers] = useState([])
   const [bills, setBills] = useState([])
   const [settings, setSettings] = useState({})
-  const [fromDate, setFromDate] = useState(monthStart()) // service period start
-  const [toDate, setToDate] = useState(today())          // service period end
+  const [month, setMonth] = useState(now.getMonth())          // 0-11
+  const [year, setYear] = useState(now.getFullYear())
+  const [search, setSearch] = useState('')
+  const [dayFilter, setDayFilter] = useState('')
   const [selected, setSelected] = useState(() => new Set())
+  const [overrides, setOverrides] = useState({})              // customerId -> [dates]
+  const [expandedId, setExpandedId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [created, setCreated] = useState(null)
 
@@ -33,30 +51,46 @@ export default function MonthlyBilling() {
         setCustomers(c)
         setBills(b)
         setSettings(s)
-        // Pre-select every active customer who has a previous bill to recur from.
         const eligibleIds = c.filter(cust => cust.active !== false && b.some(bill => bill.customerId === cust.id)).map(cust => cust.id)
         setSelected(new Set(eligibleIds))
       })
   }, [])
 
-  // Each eligible customer + their most recent bill + the items that would recur.
-  const eligible = customers
-    .filter(customer => customer.active !== false) // skip discontinued customers
+  // Changing the month resets any custom visit dates (the auto dates change).
+  useEffect(() => { setOverrides({}); setExpandedId(null) }, [month, year])
+
+  const fromDate = format(new Date(year, month, 1), 'yyyy-MM-dd')
+  const toDate = format(new Date(year, month + 1, 0), 'yyyy-MM-dd')
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() + 1 - i)
+
+  const visitsFor = (id, auto) => overrides[id] ?? auto
+
+  // Each active customer with a past bill, plus their recurring services and visit dates.
+  const rows = customers
+    .filter(c => c.active !== false)
     .map(customer => {
       const theirs = bills.filter(b => b.customerId === customer.id)
       if (!theirs.length) return null
       const lastBill = [...theirs].sort((a, b) => billDate(b).localeCompare(billDate(a)))[0]
       const items = recurringItems(lastBill)
-      const total = items.reduce((s, i) => s + i.price, 0)
-      return { customer, lastBill, items, total }
+      const perVisit = items.reduce((s, i) => s + i.price, 0)
+      const auto = visitDates(customer.serviceDay, fromDate, toDate)
+      const visits = visitsFor(customer.id, auto)
+      return { customer, items, perVisit, visits, total: perVisit * visits.length, serviceDay: customer.serviceDay || '' }
     })
     .filter(Boolean)
     .sort((a, b) => a.customer.name.localeCompare(b.customer.name))
 
-  const noHistoryCount = customers.filter(c => c.active !== false).length - eligible.length
-  const selectedEligible = eligible.filter(e => selected.has(e.customer.id))
-  const grandTotal = selectedEligible.reduce((s, e) => s + e.total, 0)
-  const allSelected = eligible.length > 0 && selectedEligible.length === eligible.length
+  const q = search.trim().toLowerCase()
+  const displayRows = rows
+    .filter(r => !dayFilter || r.serviceDay === dayFilter)
+    .filter(r => !q || r.customer.name.toLowerCase().includes(q))
+
+  const noHistoryCount = customers.filter(c => c.active !== false).length - rows.length
+  const selectedRows = rows.filter(r => selected.has(r.customer.id) && r.visits.length > 0)
+  const grandTotal = selectedRows.reduce((s, r) => s + r.total, 0)
+  const displayBillable = displayRows.filter(r => r.visits.length > 0)
+  const allSelected = displayBillable.length > 0 && displayBillable.every(r => selected.has(r.customer.id))
 
   function toggle(id) {
     setSelected(prev => {
@@ -66,28 +100,55 @@ export default function MonthlyBilling() {
     })
   }
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(eligible.map(e => e.customer.id)))
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allSelected) displayBillable.forEach(r => next.delete(r.customer.id))
+      else displayBillable.forEach(r => next.add(r.customer.id))
+      return next
+    })
   }
 
-  const validRange = !!fromDate && !!toDate && fromDate <= toDate
+  // --- per-customer visit date editing ---
+  function setVisit(r, idx, value) {
+    setOverrides(prev => {
+      const cur = prev[r.customer.id] ?? r.visits
+      const next = [...cur]; next[idx] = value
+      return { ...prev, [r.customer.id]: next }
+    })
+  }
+  function addVisit(r) {
+    setOverrides(prev => {
+      const cur = prev[r.customer.id] ?? r.visits
+      return { ...prev, [r.customer.id]: [...cur, toDate] }
+    })
+  }
+  function removeVisit(r, idx) {
+    setOverrides(prev => {
+      const cur = prev[r.customer.id] ?? r.visits
+      return { ...prev, [r.customer.id]: cur.filter((_, i) => i !== idx) }
+    })
+  }
 
-  function buildBill(e) {
+  function buildBill(r) {
+    const dates = [...r.visits].sort((a, b) => a.localeCompare(b))
+    const workDays = dates.map(date => ({ id: uuid(), date, items: r.items }))
+    const flat = workDays.flatMap(d => d.items)
     return {
       id: uuid(),
-      customerId: e.customer.id,
-      customerName: e.customer.name,
-      customerAddress: e.customer.address || '',
-      customerCity: e.customer.city || '',
-      customerState: e.customer.state || '',
-      customerZip: e.customer.zip || '',
-      customerPhone: e.customer.phone || '',
-      customerEmail: e.customer.email || '',
+      customerId: r.customer.id,
+      customerName: r.customer.name,
+      customerAddress: r.customer.address || '',
+      customerCity: r.customer.city || '',
+      customerState: r.customer.state || '',
+      customerZip: r.customer.zip || '',
+      customerPhone: r.customer.phone || '',
+      customerEmail: r.customer.email || '',
       date: toDate,
       periodStart: fromDate,
       periodEnd: toDate,
-      workDays: [{ id: uuid(), date: toDate, items: e.items }],
-      items: e.items,
-      total: e.total,
+      workDays,
+      items: flat,
+      total: flat.reduce((s, i) => s + i.price, 0),
       notes: '',
       payment: { method: '', checkNumber: '', amountPaid: 0 },
       paid: false,
@@ -96,12 +157,12 @@ export default function MonthlyBilling() {
   }
 
   async function generate() {
-    if (!selectedEligible.length || !validRange || generating) return
+    if (!selectedRows.length || generating) return
     setGenerating(true)
     try {
       const made = []
-      for (const e of selectedEligible) {
-        const bill = buildBill(e)
+      for (const r of selectedRows) {
+        const bill = buildBill(r)
         await window.api.bills.save(bill)
         made.push(bill)
       }
@@ -114,7 +175,7 @@ export default function MonthlyBilling() {
   async function downloadAll() {
     if (!created?.length) return
     const buf = await generateBillsPDF(created, settings)
-    await window.api.pdf.save(buf, `bills-${toDate.slice(0, 7)}.pdf`)
+    await window.api.pdf.save(buf, `bills-${year}-${String(month + 1).padStart(2, '0')}.pdf`)
   }
 
   // --- Success view ---
@@ -125,9 +186,7 @@ export default function MonthlyBilling() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <CheckCircle size={48} className="mx-auto mb-3 text-green-500" />
           <h1 className="text-xl font-bold text-gray-800">Created {created.length} {created.length === 1 ? 'bill' : 'bills'}</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {format(parseDate(fromDate), 'MMM d')} – {format(parseDate(toDate), 'MMM d, yyyy')} · ${total.toFixed(2)} total
-          </p>
+          <p className="text-sm text-gray-500 mt-1">{MONTHS[month]} {year} · ${total.toFixed(2)} total</p>
           <div className="flex gap-2 justify-center mt-6">
             <button onClick={downloadAll} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 text-sm font-medium">
               <Download size={16} /> Download all as PDF
@@ -136,9 +195,7 @@ export default function MonthlyBilling() {
               View in Bill History <ChevronRight size={15} />
             </button>
           </div>
-          <button onClick={() => { setCreated(null); setFromDate(monthStart()); setToDate(today()) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">
-            Done
-          </button>
+          <button onClick={() => { setCreated(null); setOverrides({}) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">Done</button>
         </div>
       </div>
     )
@@ -147,9 +204,9 @@ export default function MonthlyBilling() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-1">Monthly Billing</h1>
-      <p className="text-sm text-gray-500 mb-5">Bill repeat customers in one go, using the services &amp; prices from their last bill.</p>
+      <p className="text-sm text-gray-500 mb-5">Bills each repeat customer for every visit on their service day in the month, using the services &amp; prices from their last bill.</p>
 
-      {eligible.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <Repeat size={44} className="mx-auto mb-3 opacity-25" />
           <p className="text-sm font-medium">No repeat customers yet</p>
@@ -157,36 +214,45 @@ export default function MonthlyBilling() {
         </div>
       ) : (
         <>
-          {/* Service period */}
+          {/* Billing month */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service period</label>
-            <p className="text-xs text-gray-400 mb-3">The date range these bills cover — shown on every invoice.</p>
-            <div className="flex items-center gap-3 flex-wrap">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Billing month</label>
+            <p className="text-xs text-gray-400 mb-3">Each customer is billed for every occurrence of their service day this month — each visit is dated on the invoice.</p>
+            <div className="flex items-center gap-2">
               <div className="relative">
                 <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
-                <input
-                  type="date"
-                  value={fromDate}
-                  max={toDate || undefined}
-                  onChange={e => setFromDate(e.target.value)}
-                  className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} className="border border-gray-200 rounded-lg pl-9 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                  {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
-              <span className="text-sm text-gray-400">to</span>
               <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
-                <input
-                  type="date"
-                  value={toDate}
-                  min={fromDate || undefined}
-                  onChange={e => setToDate(e.target.value)}
-                  className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
+                <select value={year} onChange={e => setYear(Number(e.target.value))} className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
             </div>
-            {!validRange && (
-              <p className="text-xs text-amber-600 mt-2">Pick a start date on or before the end date.</p>
-            )}
+          </div>
+
+          {/* Search + day filter */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3 top-2.5 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search customers…"
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            <div className="relative">
+              <select value={dayFilter} onChange={e => setDayFilter(e.target.value)} className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                <option value="">All days</option>
+                {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
+            </div>
           </div>
 
           {/* Customer list */}
@@ -195,26 +261,63 @@ export default function MonthlyBilling() {
               <button onClick={toggleAll} className="text-sm font-medium text-green-600 hover:text-green-700">
                 {allSelected ? 'Clear all' : 'Select all'}
               </button>
-              <span className="text-xs text-gray-400">{selectedEligible.length} of {eligible.length} selected</span>
+              <span className="text-xs text-gray-400">{selectedRows.length} selected</span>
             </div>
             <div className="divide-y divide-gray-50 max-h-[45vh] overflow-y-auto">
-              {eligible.map(e => {
-                const isOn = selected.has(e.customer.id)
+              {displayRows.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No customers match.</p>
+              ) : displayRows.map(r => {
+                const id = r.customer.id
+                const canBill = r.visits.length > 0
+                const isOn = canBill && selected.has(id)
+                const expanded = expandedId === id
+                const dayText = r.serviceDay ? `${r.serviceDay}s` : 'No set day'
+                const visitText = canBill ? `${r.visits.length} ${r.visits.length === 1 ? 'visit' : 'visits'}` : 'no visits this month'
                 return (
-                  <div
-                    key={e.customer.id}
-                    className={`px-4 py-3 flex items-center gap-3 transition-colors ${isOn ? 'bg-green-50' : ''}`}
-                  >
-                    <button onClick={() => toggle(e.customer.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                      <span className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isOn ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
-                        {isOn && <Check size={13} className="text-white" />}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800">{e.customer.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{e.items.map(i => i.name).join(', ') || 'No services'}</p>
+                  <div key={id} className={`transition-colors ${isOn ? 'bg-green-50' : ''} ${canBill ? '' : 'opacity-60'}`}>
+                    <div className="px-4 py-3 flex items-center gap-3">
+                      <button onClick={() => canBill && toggle(id)} disabled={!canBill} className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-not-allowed">
+                        <span className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isOn ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                          {isOn && <Check size={13} className="text-white" />}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800">{r.customer.name}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            <span className={canBill ? 'text-blue-600' : 'text-amber-600'}>{dayText} · {visitText}</span>
+                            {r.items.length ? ` · ${r.items.map(i => i.name).join(', ')}` : ''}
+                          </p>
+                        </div>
+                      </button>
+                      <span className="text-sm font-semibold text-gray-700 shrink-0 w-20 text-right">{canBill ? `$${r.total.toFixed(2)}` : '—'}</span>
+                      {canBill && (
+                        <button onClick={() => setExpandedId(expanded ? null : id)} title="Edit visit dates" className="p-1.5 text-gray-400 hover:text-blue-600 shrink-0">
+                          <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {expanded && canBill && (
+                      <div className="px-4 pb-3.5 pl-12">
+                        <p className="text-xs text-gray-400 mb-2">Visit dates — adjust if a service was done on a different day.</p>
+                        <div className="space-y-1.5">
+                          {r.visits.map((date, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="date"
+                                value={date}
+                                onChange={e => setVisit(r, idx, e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-400"
+                              />
+                              {r.visits.length > 1 && (
+                                <button onClick={() => removeVisit(r, idx)} className="text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={14} /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={() => addVisit(r)} className="mt-2 text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
+                          <Plus size={12} /> Add a day
+                        </button>
                       </div>
-                    </button>
-                    <span className="text-sm font-semibold text-gray-700 shrink-0 w-16 text-right">${e.total.toFixed(2)}</span>
+                    )}
                   </div>
                 )
               })}
@@ -235,11 +338,11 @@ export default function MonthlyBilling() {
             </div>
             <button
               onClick={generate}
-              disabled={!selectedEligible.length || !validRange || generating}
+              disabled={!selectedRows.length || generating}
               className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium text-sm shadow-sm"
             >
               <Repeat size={16} />
-              {generating ? 'Creating…' : `Create ${selectedEligible.length} ${selectedEligible.length === 1 ? 'bill' : 'bills'}`}
+              {generating ? 'Creating…' : `Create ${selectedRows.length} ${selectedRows.length === 1 ? 'bill' : 'bills'}`}
             </button>
           </div>
         </>

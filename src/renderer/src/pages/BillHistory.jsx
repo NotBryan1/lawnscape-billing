@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
@@ -13,10 +13,12 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 export default function BillHistory() {
   const navigate = useNavigate()
   const [bills, setBills] = useState([])
+  const [customers, setCustomers] = useState([])
   const [settings, setSettings] = useState({})
   const [search, setSearch] = useState('')    // customer name (type-in)
   const [month, setMonth] = useState('')      // '01'..'12'
   const [year, setYear] = useState('')        // 'yyyy'
+  const [dayFilter, setDayFilter] = useState('')  // service day of week
   const [visible, setVisible] = useState(PAGE)
   const [deleteId, setDeleteId] = useState(null)
   const [previewBill, setPreviewBill] = useState(null)
@@ -26,11 +28,13 @@ export default function BillHistory() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [b, s] = await Promise.all([
+    const [b, c, s] = await Promise.all([
       window.api.bills.getAll(),
+      window.api.customers.getAll(),
       window.api.settings.get(),
     ])
     setBills(b)
+    setCustomers(c)
     setSettings(s)
   }
 
@@ -62,13 +66,17 @@ export default function BillHistory() {
   // Years present in the data (newest first), for the year dropdown.
   const years = [...new Set(bills.map(b => billDate(b).slice(0, 4)).filter(Boolean))].sort().reverse()
 
+  // Map each customer id to their service day, to filter bills by day of week.
+  const dayByCustomer = customers.reduce((acc, c) => { acc[c.id] = c.serviceDay || ''; return acc }, {})
+
   const q = search.trim().toLowerCase()
-  const hasFilter = !!(q || month || year)
+  const hasFilter = !!(q || month || year || dayFilter)
   // Picking a month/year shows the whole period; everything else still pages.
   const dateFiltered = !!(month || year)
 
   let filtered = bills
   if (q) filtered = filtered.filter(b => (b.customerName || '').toLowerCase().includes(q))
+  if (dayFilter) filtered = filtered.filter(b => dayByCustomer[b.customerId] === dayFilter)
   if (year) filtered = filtered.filter(b => billDate(b).startsWith(year + '-'))
   if (month) filtered = filtered.filter(b => billDate(b).slice(5, 7) === month)
   // Newest first, oldest at the bottom.
@@ -91,9 +99,10 @@ export default function BillHistory() {
   const searchLabel = search.trim()
   const descParts = []
   if (searchLabel) descParts.push(`matching "${searchLabel}"`)
+  if (dayFilter) descParts.push(`on ${dayFilter}s`)
   if (monthName || year) descParts.push(`in ${[monthName, year].filter(Boolean).join(' ')}`)
   const filterDescription = descParts.join(' ')
-  const downloadLabel = [searchLabel.replace(/\s+/g, '-'), monthName, year].filter(Boolean).join('-') || 'filtered'
+  const downloadLabel = [searchLabel.replace(/\s+/g, '-'), dayFilter, monthName, year].filter(Boolean).join('-') || 'filtered'
 
   return (
     <div className="p-6">
@@ -101,6 +110,10 @@ export default function BillHistory() {
         <h1 className="text-2xl font-bold text-gray-800">Bill History</h1>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Dropdown value={dayFilter} onChange={setDayFilter}>
+            <option value="">All days</option>
+            {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+          </Dropdown>
           <Dropdown value={month} onChange={setMonth}>
             <option value="">All months</option>
             {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}

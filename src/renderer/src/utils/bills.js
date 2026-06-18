@@ -5,6 +5,15 @@
 
 const DEFAULT_SERVICES = ['Lawn Mowing', 'Mulch']
 
+// Days of the week a customer can be assigned for recurring service.
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const DOW_INDEX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }
+
+// JS Date.getDay() index (0=Sun) for a weekday name, or -1 if unknown.
+export function weekdayIndex(name) {
+  return name in DOW_INDEX ? DOW_INDEX[name] : -1
+}
+
 // Returns an array of { id, date, items } for a bill, sorted oldest → newest,
 // regardless of whether it uses the new `workDays` shape or the legacy single-day shape.
 export function workDaysOf(bill) {

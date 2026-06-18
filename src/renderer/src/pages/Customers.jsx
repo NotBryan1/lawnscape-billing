@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck } from 'lucide-react'
+import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
-const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '' }
+const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '', serviceDay: '' }
 
 // A customer is active unless explicitly discontinued (older records have no flag).
 const isActive = (c) => c.active !== false
@@ -23,6 +23,7 @@ export default function Customers() {
   const [bills, setBills] = useState([])
   const [settings, setSettings] = useState({})
   const [sortBy, setSortBy] = useState('name')
+  const [dayFilter, setDayFilter] = useState('')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
@@ -81,6 +82,7 @@ export default function Customers() {
 
   const q = search.trim().toLowerCase()
   const visible = [...customers]
+    .filter(c => !dayFilter || c.serviceDay === dayFilter)
     .filter(c => !q || [c.name, c.address, c.city, c.state, c.zip, c.phone, c.email]
       .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
     .sort(SORTS[sortBy].fn)
@@ -93,6 +95,17 @@ export default function Customers() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Customers</h1>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <select
+              value={dayFilter}
+              onChange={e => setDayFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">All days</option>
+              {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
+          </div>
           <div className="relative">
             <select
               value={sortBy}
@@ -207,6 +220,20 @@ export default function Customers() {
             </div>
             <Field label="Phone" value={form.phone} onChange={field('phone')} placeholder="555-555-5555" />
             <Field label="Email" value={form.email} onChange={field('email')} placeholder="john@email.com" />
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Service day</label>
+              <div className="relative">
+                <select
+                  value={form.serviceDay || ''}
+                  onChange={e => field('serviceDay')(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  <option value="">No set day</option>
+                  {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
           </div>
           <div className="flex gap-3 mt-5">
             <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
@@ -244,6 +271,11 @@ function CustomerRow({ customer: c, bills, active, onOpen, onEdit, onDelete, onT
           </p>
         )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+          {c.serviceDay && (
+            <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
+              <CalendarDays size={12} /> {c.serviceDay}s
+            </span>
+          )}
           {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
           {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
           <span className="text-xs text-green-700 font-medium">
