@@ -9,7 +9,27 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder"
+    "package": "electron-vite build && electron-builder",
+    "package:mac": "electron-vite build && electron-builder --mac",
+    "package:win": "electron-vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.lawnscape.billing",
+    "productName": "Lawnscape Billing",
+    "directories": { "output": "dist" },
+    "files": ["out/**/*"],
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "date-fns": "^3.6.0",
