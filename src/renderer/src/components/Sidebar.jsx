@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, Settings, Leaf, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, Settings, HelpCircle, Leaf, Sun, Moon } from 'lucide-react'
 import { useSettings } from '../SettingsContext'
 import { useTheme } from '../ThemeContext'
 
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/history',   icon: History,          label: 'Bill History' },
   { to: '/payments',  icon: CreditCard,       label: 'Payments' },
   { to: '/settings',  icon: Settings,         label: 'Settings' },
+  { to: '/help',      icon: HelpCircle,       label: 'Help' },
 ]
 
 export default function Sidebar() {
