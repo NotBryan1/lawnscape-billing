@@ -19,7 +19,7 @@ export default function Settings() {
   }
 
   async function handleSave() {
-    await window.api.settings.save(form)
+    await window.api.settings.save({ ...form, overdueDays: Number(form.overdueDays) || 30 })
     await reloadSettings()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -80,6 +80,10 @@ export default function Settings() {
         <Field label="Business Name" value={form.businessName} onChange={v => setForm(f => ({ ...f, businessName: v }))} placeholder="Green Valley Lawnscaping" />
         <Field label="Phone Number" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} placeholder="555-555-5555" />
         <Field label="Email Address" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="info@yourbusiness.com" type="email" />
+        <div>
+          <Field label="Mark bills overdue after (days)" value={String(form.overdueDays ?? 30)} onChange={v => setForm(f => ({ ...f, overdueDays: v }))} placeholder="30" type="number" />
+          <p className="text-xs text-gray-400 mt-1">Unpaid bills older than this show a red "Overdue" flag.</p>
+        </div>
 
         <button
           onClick={handleSave}
@@ -114,6 +118,10 @@ export default function Settings() {
             {backupMsg.text}
           </p>
         )}
+        <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+          A backup is also saved automatically once a week (the last 8 are kept).{' '}
+          <button onClick={() => window.api.backups.openFolder()} className="text-green-600 underline hover:text-green-700">Open backups folder</button>
+        </p>
       </div>
 
       <p className="mt-4 text-xs text-gray-400 leading-relaxed">

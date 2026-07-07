@@ -166,9 +166,9 @@ export default function MonthlyBilling() {
     try {
       const made = []
       for (const r of selectedRows) {
-        const bill = buildBill(r)
-        await window.api.bills.save(bill)
-        made.push(bill)
+        // Use the saved copy — the invoice number is assigned on save.
+        const saved = await window.api.bills.save(buildBill(r))
+        made.push(saved)
       }
       setBills(await window.api.bills.getAll()) // refresh so they show as already billed
       setCreated(made)

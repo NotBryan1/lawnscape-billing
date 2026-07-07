@@ -6,6 +6,7 @@ import NewBill from './pages/NewBill'
 import MonthlyBilling from './pages/MonthlyBilling'
 import BillHistory from './pages/BillHistory'
 import Payments from './pages/Payments'
+import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
 import { SettingsProvider } from './SettingsContext'
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="/monthly-billing" element={<MonthlyBilling />} />
               <Route path="/history" element={<BillHistory />} />
               <Route path="/payments" element={<Payments />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/help" element={<Help />} />
             </Routes>

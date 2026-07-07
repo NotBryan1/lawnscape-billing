@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Search, CreditCard, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
-import { billDate, parseDate, paymentOf, paymentStatus, paymentMethodLabel } from '../utils/bills'
+import { billDate, parseDate, paymentOf, paymentStatus, paymentMethodLabel, isOverdue } from '../utils/bills'
 import PaymentModal from '../components/PaymentModal'
 
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'unpaid', label: 'Unpaid' },
   { value: 'partial', label: 'Partial' },
+  { value: 'overdue', label: 'Overdue' },
   { value: 'paid', label: 'Paid' },
 ]
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -20,19 +21,24 @@ export default function Payments() {
   const [year, setYear] = useState('')
   const [search, setSearch] = useState('')
   const [visible, setVisible] = useState(PAGE)
+  const [settings, setSettings] = useState({})
   const [paymentBill, setPaymentBill] = useState(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    setBills(await window.api.bills.getAll())
+    const [b, s] = await Promise.all([window.api.bills.getAll(), window.api.settings.get()])
+    setBills(b)
+    setSettings(s)
   }
 
+  const overdueDays = Number(settings.overdueDays) || 30
   const years = [...new Set(bills.map(b => billDate(b).slice(0, 4)).filter(Boolean))].sort().reverse()
 
   const q = search.trim().toLowerCase()
   let list = [...bills].sort((a, b) => billDate(b).localeCompare(billDate(a))) // most recent first
-  if (filter !== 'all') list = list.filter(b => paymentStatus(b) === filter)
+  if (filter === 'overdue') list = list.filter(b => isOverdue(b, overdueDays))
+  else if (filter !== 'all') list = list.filter(b => paymentStatus(b) === filter)
   if (year) list = list.filter(b => billDate(b).startsWith(year + '-'))
   if (month) list = list.filter(b => billDate(b).slice(5, 7) === month)
   if (q) list = list.filter(b => (b.customerName || '').toLowerCase().includes(q))
@@ -128,10 +134,10 @@ export default function Payments() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-gray-800 truncate">{bill.customerName}</p>
-                          <StatusBadge status={status} />
+                          <StatusBadge status={status} overdue={isOverdue(bill, overdueDays)} />
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {format(parseDate(billDate(bill)), 'MMM d, yyyy')} · Total ${total.toFixed(2)}
+                          {bill.invoiceNumber ? `#${bill.invoiceNumber} · ` : ''}{format(parseDate(billDate(bill)), 'MMM d, yyyy')} · Total ${total.toFixed(2)}
                           {pay.amountPaid > 0 && ` · Paid $${pay.amountPaid.toFixed(2)}`}
                           {pay.method && ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}`}
                         </p>
@@ -172,7 +178,10 @@ export default function Payments() {
 const STATUS_STYLES = { paid: 'bg-green-100 text-green-700', partial: 'bg-amber-100 text-amber-700', unpaid: 'bg-gray-100 text-gray-500' }
 const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, overdue }) {
+  if (overdue) {
+    return <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">Overdue</span>
+  }
   return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[status]}`}>{STATUS_LABELS[status]}</span>
 }
 

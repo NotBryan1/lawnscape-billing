@@ -25,6 +25,19 @@ contextBridge.exposeInMainWorld('api', {
   },
   pdf: {
     save: (buffer, filename) => ipcRenderer.invoke('pdf:save', { buffer, filename }),
+    print: (buffer, filename) => ipcRenderer.invoke('pdf:print', { buffer, filename }),
+  },
+  email: {
+    compose: (payload) => ipcRenderer.invoke('email:compose', payload),
+  },
+  files: {
+    save: (payload) => ipcRenderer.invoke('file:save', payload),
+  },
+  backups: {
+    openFolder: () => ipcRenderer.invoke('backups:open-folder'),
+  },
+  appInfo: {
+    version: () => ipcRenderer.invoke('app:version'),
   },
   data: {
     export: () => ipcRenderer.invoke('data:export'),

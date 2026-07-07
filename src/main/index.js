@@ -3,6 +3,7 @@ import { join } from 'path'
 import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
+import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import * as XLSX from 'xlsx'
 
@@ -76,10 +77,21 @@ function parseCustomersFromSheet(filePath) {
 // --- Bills ---
 function billsPath() { return path.join(getDataDir(), 'bills.json') }
 function readAllBills() { return readJSON(billsPath()) || [] }
+// Sequential invoice numbers, starting at #1001.
+function nextInvoiceNumber(list) {
+  return list.reduce((m, b) => Math.max(m, Number(b.invoiceNumber) || 0), 1000) + 1
+}
 function saveBill(bill) {
   const list = readAllBills()
   const idx = list.findIndex(b => b.id === bill.id)
-  if (idx >= 0) list[idx] = bill; else list.unshift(bill)
+  if (idx >= 0) {
+    // Updates keep their original invoice number.
+    bill = { ...bill, invoiceNumber: bill.invoiceNumber ?? list[idx].invoiceNumber }
+    list[idx] = bill
+  } else {
+    bill = { ...bill, invoiceNumber: bill.invoiceNumber ?? nextInvoiceNumber(list) }
+    list.unshift(bill)
+  }
   writeJSON(billsPath(), list)
   return bill
 }
@@ -117,11 +129,44 @@ function setBillPayment(id, payment) {
 // --- Settings ---
 function settingsPath() { return path.join(getDataDir(), 'settings.json') }
 function readSettings() {
-  return readJSON(settingsPath()) || { businessName: '', phone: '', email: '', logo: null }
+  const defaults = { businessName: '', phone: '', email: '', logo: null, overdueDays: 30 }
+  return { ...defaults, ...(readJSON(settingsPath()) || {}) }
 }
 function saveSettings(settings) {
   writeJSON(settingsPath(), settings)
   return settings
+}
+
+// --- Automatic backups (weekly, kept in userData/backups, last 8 retained) ---
+function backupsDir() {
+  const dir = path.join(app.getPath('userData'), 'backups')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+function maybeAutoBackup() {
+  try {
+    const dir = backupsDir()
+    const files = fs.readdirSync(dir).filter(f => f.startsWith('auto-backup-')).sort()
+    const today = new Date().toISOString().slice(0, 10)
+    const last = files[files.length - 1]
+    if (last) {
+      const lastDate = last.slice('auto-backup-'.length, 'auto-backup-'.length + 10)
+      const ageDays = (new Date(today) - new Date(lastDate)) / 86400000
+      if (ageDays < 7) return
+    }
+    const payload = {
+      app: 'lawnscape-billing',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      auto: true,
+      customers: readCustomers(),
+      bills: readAllBills(),
+      settings: readSettings(),
+    }
+    fs.writeFileSync(path.join(dir, `auto-backup-${today}.json`), JSON.stringify(payload))
+    const all = fs.readdirSync(dir).filter(f => f.startsWith('auto-backup-')).sort()
+    all.slice(0, Math.max(0, all.length - 8)).forEach(f => fs.unlinkSync(path.join(dir, f)))
+  } catch { /* never block startup on a backup */ }
 }
 
 // --- Window ---
@@ -152,6 +197,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  maybeAutoBackup()
 
   // Check for updates on Windows only. Mac auto-update needs a paid signing
   // certificate, so Mac stays on the manual "drag to replace" flow.
@@ -264,6 +310,48 @@ ipcMain.handle('data:import', async () => {
     counts: { customers: data.customers?.length || 0, bills: data.bills?.length || 0 },
   }
 })
+
+// Open a bill PDF in a print-ready window (Chromium's PDF viewer).
+ipcMain.handle('pdf:print', async (_, { buffer, filename }) => {
+  const file = path.join(app.getPath('temp'), filename || 'invoice.pdf')
+  fs.writeFileSync(file, Buffer.from(buffer))
+  const win = new BrowserWindow({
+    width: 900,
+    height: 720,
+    title: 'Print Invoice',
+    webPreferences: { plugins: true },
+  })
+  await win.loadURL(pathToFileURL(file).toString())
+  return true
+})
+
+// Start an email draft to the customer and reveal the invoice PDF so it can
+// be dragged into the message (mailto: can't attach files directly).
+ipcMain.handle('email:compose', async (_, { to, subject, body, buffer, filename }) => {
+  const file = path.join(app.getPath('temp'), filename || 'invoice.pdf')
+  fs.writeFileSync(file, Buffer.from(buffer))
+  shell.showItemInFolder(file)
+  const mailto = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject || '')}&body=${encodeURIComponent(body || '')}`
+  await shell.openExternal(mailto)
+  return true
+})
+
+// Generic "save this buffer as a file" with a save dialog (used by report exports).
+ipcMain.handle('file:save', async (_, { buffer, filename, filterName, extensions }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Save File',
+    defaultPath: filename,
+    filters: [{ name: filterName || 'File', extensions: extensions || ['*'] }],
+  })
+  if (canceled || !filePath) return false
+  fs.writeFileSync(filePath, Buffer.from(buffer))
+  shell.showItemInFolder(filePath)
+  return true
+})
+
+ipcMain.handle('backups:open-folder', () => shell.openPath(backupsDir()))
+
+ipcMain.handle('app:version', () => app.getVersion())
 
 ipcMain.handle('pdf:save', async (_, { buffer, filename }) => {
   const { canceled, filePath } = await dialog.showSaveDialog({

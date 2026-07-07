@@ -7,7 +7,7 @@ import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymen
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
-const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '', serviceDay: '' }
+const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '', serviceDay: '', notes: '' }
 
 // A customer is active unless explicitly discontinued (older records have no flag).
 const isActive = (c) => c.active !== false
@@ -323,6 +323,16 @@ export default function Customers() {
                 <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <textarea
+                value={form.notes || ''}
+                onChange={e => field('notes')(e.target.value)}
+                rows={2}
+                placeholder="e.g. Gate code 4482, dog in backyard, skip side yard"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
           </div>
           <div className="flex gap-3 mt-5">
             <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
@@ -359,6 +369,7 @@ function CustomerRow({ customer: c, bills, active, onOpen, onEdit, onDelete, onT
             {[c.address, c.city, c.state, c.zip].filter(Boolean).join(', ')}
           </p>
         )}
+        {c.notes && <p className="text-xs text-gray-400 italic truncate mt-0.5">{c.notes}</p>}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
           {c.serviceDay && (
             <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
@@ -413,6 +424,9 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
         <p className="text-sm text-gray-500 -mt-2 mb-4">
           {[customer.address, customer.city, customer.state, customer.zip].filter(Boolean).join(', ')}
         </p>
+      )}
+      {customer.notes && (
+        <p className="text-xs text-gray-500 italic bg-gray-100 rounded-lg px-3 py-2 -mt-2 mb-4">{customer.notes}</p>
       )}
 
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Past Bills</p>

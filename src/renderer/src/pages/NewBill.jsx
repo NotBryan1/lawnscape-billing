@@ -213,10 +213,11 @@ export default function NewBill() {
   async function doSave(bill, withPdf) {
     setSaving(true)
     try {
-      await window.api.bills.save(bill)
+      // Use the saved copy — the invoice number is assigned on save.
+      const saved = await window.api.bills.save(bill)
       if (withPdf) {
-        const buf = await generateBillPDF(bill, settings)
-        const filename = `invoice-${bill.customerName.replace(/\s+/g, '-')}-${bill.date}.pdf`
+        const buf = await generateBillPDF(saved, settings)
+        const filename = `invoice-${saved.customerName.replace(/\s+/g, '-')}-${saved.date}.pdf`
         const saved = await window.api.pdf.save(buf, filename)
         const ok = editId ? 'Bill updated & PDF exported!' : 'Bill saved & PDF exported!'
         showToast(saved ? ok : 'Bill saved (PDF export canceled)')
@@ -335,6 +336,11 @@ export default function NewBill() {
           <p className="text-sm text-gray-500 mb-3">
             Add each day work was done at <span className="font-medium text-gray-700">{customer?.name}</span>'s property this billing period.
           </p>
+          {customer?.notes && (
+            <div className="mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-600">
+              <span className="font-semibold">Customer note:</span> {customer.notes}
+            </div>
+          )}
           <div className="space-y-2">
             {workDays.map((d, i) => (
               <div key={d.id} className="flex items-center gap-3">

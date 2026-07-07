@@ -68,6 +68,15 @@ export function paymentOf(bill) {
   return { method: p.method || '', checkNumber: p.checkNumber || '', amountPaid }
 }
 
+// A bill is overdue when it isn't fully paid and its date is more than
+// `days` days in the past.
+export function isOverdue(bill, days = 30) {
+  if (paymentStatus(bill) === 'paid') return false
+  const due = parseDate(billDate(bill))
+  due.setDate(due.getDate() + (Number(days) || 30))
+  return new Date() > due
+}
+
 // 'paid' | 'partial' | 'unpaid' for a bill, based on amount paid vs total.
 export function paymentStatus(bill) {
   const total = Number(bill.total) || 0

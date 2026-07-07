@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, Settings, HelpCircle, Leaf, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, BarChart3, Settings, HelpCircle, Leaf, Sun, Moon } from 'lucide-react'
 import { useSettings } from '../SettingsContext'
 import { useTheme } from '../ThemeContext'
 
@@ -10,6 +11,7 @@ const navItems = [
   { to: '/monthly-billing', icon: Repeat,     label: 'Monthly Billing' },
   { to: '/history',   icon: History,          label: 'Bill History' },
   { to: '/payments',  icon: CreditCard,       label: 'Payments' },
+  { to: '/reports',   icon: BarChart3,        label: 'Reports' },
   { to: '/settings',  icon: Settings,         label: 'Settings' },
   { to: '/help',      icon: HelpCircle,       label: 'Help' },
 ]
@@ -17,7 +19,12 @@ const navItems = [
 export default function Sidebar() {
   const { settings } = useSettings()
   const { theme, toggleTheme } = useTheme()
+  const [version, setVersion] = useState('')
   const name = settings.businessName?.trim() || 'Lawnscape'
+
+  useEffect(() => {
+    window.api.appInfo?.version().then(setVersion).catch(() => {})
+  }, [])
 
   return (
     <aside className="w-56 bg-green-800 dark:bg-gray-950 text-white flex flex-col shrink-0 transition-colors">
@@ -56,7 +63,7 @@ export default function Sidebar() {
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           {theme === 'dark' ? 'Light mode' : 'Dark mode'}
         </button>
-        <p className="text-xs text-green-500 dark:text-gray-600 px-3 pt-2">v1.0.0</p>
+        {version && <p className="text-xs text-green-500 dark:text-gray-600 px-3 pt-2">v{version}</p>}
       </div>
     </aside>
   )

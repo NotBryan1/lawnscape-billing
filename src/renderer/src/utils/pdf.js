@@ -47,7 +47,7 @@ function renderBill(doc, bill, settings) {
   // Invoice label + date(s)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('INVOICE', 14, y)
+  doc.text(bill.invoiceNumber ? `INVOICE #${bill.invoiceNumber}` : 'INVOICE', 14, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   const period = billPeriod(bill)
@@ -143,10 +143,12 @@ function renderBill(doc, bill, settings) {
   doc.text('Thank you for your business!', W / 2, footerY, { align: 'center' })
 }
 
-// One bill → a PDF buffer.
-export async function generateBillPDF(bill, settings) {
+// One bill → a PDF buffer. `autoPrint` embeds a print request so viewers
+// that support it pop the print dialog on open.
+export async function generateBillPDF(bill, settings, opts = {}) {
   const doc = new jsPDF()
   renderBill(doc, bill, settings)
+  if (opts.autoPrint && typeof doc.autoPrint === 'function') doc.autoPrint()
   return doc.output('arraybuffer')
 }
 

@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, Users, DollarSign, FileText, ChevronRight } from 'lucide-react'
+import { FilePlus, Users, DollarSign, FileText, ChevronRight, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
-import { itemsOf, billDate, parseDate } from '../utils/bills'
+import { itemsOf, billDate, parseDate, paymentOf, isOverdue } from '../utils/bills'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [recentBills, setRecentBills] = useState([])
   const [customerCount, setCustomerCount] = useState(0)
   const [monthTotal, setMonthTotal] = useState(0)
+  const [overdueBills, setOverdueBills] = useState([])
 
   useEffect(() => {
     async function load() {
-      const [bills, customers] = await Promise.all([
+      const [bills, customers, settings] = await Promise.all([
         window.api.bills.getAll(),
         window.api.customers.getAll(),
+        window.api.settings.get(),
       ])
       setRecentBills(bills.slice(0, 6))
       setCustomerCount(customers.length)
@@ -24,9 +26,17 @@ export default function Dashboard() {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
       })
       setMonthTotal(thisMonth.reduce((sum, b) => sum + b.total, 0))
+
+      const days = Number(settings.overdueDays) || 30
+      setOverdueBills(
+        bills.filter(b => isOverdue(b, days)).sort((a, b) => billDate(a).localeCompare(billDate(b)))
+      )
     }
     load()
   }, [])
+
+  const balanceOf = (b) => Math.max(0, (Number(b.total) || 0) - paymentOf(b).amountPaid)
+  const overdueTotal = overdueBills.reduce((s, b) => s + balanceOf(b), 0)
 
   return (
     <div className="p-6">
@@ -41,11 +51,43 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard icon={<Users size={20} className="text-blue-600" />} bg="bg-blue-50" label="Customers" value={customerCount} />
         <StatCard icon={<DollarSign size={20} className="text-green-600" />} bg="bg-green-50" label="Billed This Month" value={`$${monthTotal.toFixed(2)}`} />
+        <StatCard icon={<AlertTriangle size={20} className="text-red-600" />} bg="bg-red-50" label="Overdue" value={`$${overdueTotal.toFixed(2)}`} />
         <StatCard icon={<FileText size={20} className="text-purple-600" />} bg="bg-purple-50" label="Recent Bills" value={recentBills.length} />
       </div>
+
+      {/* Overdue bills that need chasing */}
+      {overdueBills.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-red-100 mb-6">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-red-50">
+            <h2 className="font-semibold text-red-700 text-sm flex items-center gap-2">
+              <AlertTriangle size={15} /> Needs attention — overdue bills
+            </h2>
+            <button onClick={() => navigate('/payments')} className="text-xs text-green-600 hover:underline flex items-center gap-0.5">
+              Go to Payments <ChevronRight size={13} />
+            </button>
+          </div>
+          <ul>
+            {overdueBills.slice(0, 5).map((bill, i) => (
+              <li key={bill.id} className={`flex items-center justify-between px-4 py-2.5 ${i < Math.min(overdueBills.length, 5) - 1 ? 'border-b border-gray-50' : ''}`}>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    {bill.customerName}
+                    {bill.invoiceNumber && <span className="text-xs text-gray-400 font-normal"> · #{bill.invoiceNumber}</span>}
+                  </p>
+                  <p className="text-xs text-gray-400">{format(parseDate(billDate(bill)), 'MMM d, yyyy')}</p>
+                </div>
+                <p className="text-sm font-bold text-red-600">${balanceOf(bill).toFixed(2)} due</p>
+              </li>
+            ))}
+          </ul>
+          {overdueBills.length > 5 && (
+            <p className="px-4 py-2 text-xs text-gray-400 border-t border-gray-50">+{overdueBills.length - 5} more in Payments</p>
+          )}
+        </div>
+      )}
 
       {/* Recent bills */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">

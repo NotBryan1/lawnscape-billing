@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, Settings as SettingsIcon, ChevronDown, Leaf, Moon } from 'lucide-react'
+import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, BarChart3, Settings as SettingsIcon, ChevronDown, Leaf, Moon } from 'lucide-react'
 
 const SECTIONS = [
   {
@@ -18,6 +18,7 @@ const SECTIONS = [
     items: [
       'Add, edit, or delete customers — name, address, phone, and email.',
       'Search by name, address, or phone, and sort by name, city, or ZIP code.',
+      'Add private notes (gate codes, pets, preferences) — they pop up when you bill that customer.',
       'Click a customer to see all their past bills and record payments.',
       'Discontinue a customer to stop billing them while keeping their full history — they move to a "Discontinued" section and can be reactivated anytime.',
     ],
@@ -54,7 +55,8 @@ const SECTIONS = [
     items: [
       'Every bill, newest first, grouped by month.',
       'Filter by month and year, or type a customer’s name to search instantly.',
-      'Preview, edit, re-download, or delete any bill.',
+      'Preview, edit, print, email, re-download, or delete any bill.',
+      'Every bill gets a sequential invoice number (#1001, #1002…) shown on the PDF.',
       'Use "Download all as PDF" to export a whole filtered month at once.',
     ],
   },
@@ -66,7 +68,18 @@ const SECTIONS = [
       'Record how each bill was paid: cash, check (with a check number), Zelle, or other.',
       'Enter full or partial amounts — a payment can never exceed the bill total.',
       'See your total outstanding balance and total collected at the top.',
-      'Filter by status (paid / partial / unpaid), month, year, or customer name.',
+      'Filter by status (paid / partial / unpaid / overdue), month, year, or customer name.',
+      'Bills unpaid past your overdue window turn red — set the number of days in Settings.',
+    ],
+  },
+  {
+    icon: BarChart3,
+    title: 'Reports',
+    subtitle: 'Your income at a glance',
+    items: [
+      'Pick a year to see billed, collected, and balance due, month by month.',
+      'See totals per customer for the year.',
+      'Export everything as a spreadsheet — handy at tax time.',
     ],
   },
   {
@@ -76,6 +89,7 @@ const SECTIONS = [
     items: [
       'Set your business name, logo, phone, and email — these appear on every invoice.',
       'Back up all your data to a single file, and restore it later if needed.',
+      'A backup is also saved automatically once a week (the last 8 are kept).',
       'Your data is stored privately on this computer and is never uploaded anywhere.',
     ],
   },

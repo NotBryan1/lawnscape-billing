@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, Search } from 'lucide-react'
+import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, Search, Printer, Mail } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
-import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
+import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, isOverdue, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
@@ -48,6 +48,24 @@ export default function BillHistory() {
     const buf = await generateBillPDF(bill, settings)
     const name = `invoice-${bill.customerName.replace(/\s+/g, '-')}-${billDate(bill)}.pdf`
     await window.api.pdf.save(buf, name)
+  }
+
+  async function printBill(bill) {
+    const buf = await generateBillPDF(bill, settings, { autoPrint: true })
+    const name = `invoice-${bill.customerName.replace(/\s+/g, '-')}-${billDate(bill)}.pdf`
+    await window.api.pdf.print(buf, name)
+  }
+
+  async function emailBill(bill) {
+    const buf = await generateBillPDF(bill, settings)
+    const num = bill.invoiceNumber ? `#${bill.invoiceNumber} ` : ''
+    await window.api.email.compose({
+      to: bill.customerEmail || '',
+      subject: `Invoice ${num}from ${settings.businessName || 'Lawnscape'}`,
+      body: `Hi ${bill.customerName},\n\nYour invoice ${num}for $${Number(bill.total).toFixed(2)} is attached.\n\nThank you!\n${settings.businessName || ''}`,
+      buffer: buf,
+      filename: `invoice-${bill.customerName.replace(/\s+/g, '-')}-${billDate(bill)}.pdf`,
+    })
   }
 
   // Combine every bill in the current filter into one multi-page PDF.
@@ -171,9 +189,12 @@ export default function BillHistory() {
                   <BillCard
                     key={bill.id}
                     bill={bill}
+                    overdue={isOverdue(bill, Number(settings.overdueDays) || 30)}
                     onPayment={() => setPaymentBill(bill)}
                     onPreview={() => setPreviewBill(bill)}
                     onEdit={() => navigate('/new-bill', { state: { editBill: bill } })}
+                    onPrint={() => printBill(bill)}
+                    onEmail={() => emailBill(bill)}
                     onReExport={() => reExport(bill)}
                     onDelete={() => setDeleteId(bill.id)}
                   />
@@ -219,7 +240,7 @@ export default function BillHistory() {
   )
 }
 
-function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) {
+function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmail, onReExport, onDelete }) {
   const days = workDaysOf(bill)
   const multiDay = days.length > 1
   const period = billPeriod(bill)
@@ -232,7 +253,8 @@ function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-semibold text-gray-800">{bill.customerName}</p>
-            <PaymentBadge status={status} onClick={onPayment} />
+            <PaymentBadge status={status} overdue={overdue} onClick={onPayment} />
+            {bill.invoiceNumber && <span className="text-xs text-gray-400">#{bill.invoiceNumber}</span>}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
             {period
@@ -267,6 +289,12 @@ function BillCard({ bill, onPayment, onPreview, onEdit, onReExport, onDelete }) 
             <button onClick={onEdit} title="Edit bill" className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
               <Pencil size={15} />
             </button>
+            <button onClick={onPrint} title="Print" className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <Printer size={15} />
+            </button>
+            <button onClick={onEmail} title="Email to customer" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+              <Mail size={15} />
+            </button>
             <button onClick={onReExport} title="Download PDF" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
               <FileDown size={15} />
             </button>
@@ -287,7 +315,14 @@ const STATUS_STYLES = {
 }
 const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
 
-function PaymentBadge({ status, onClick }) {
+function PaymentBadge({ status, overdue, onClick }) {
+  if (overdue) {
+    return (
+      <button onClick={onClick} title="Edit payment" className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+        Overdue
+      </button>
+    )
+  }
   return (
     <button
       onClick={onClick}
