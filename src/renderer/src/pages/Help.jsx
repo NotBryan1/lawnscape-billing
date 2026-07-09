@@ -7,8 +7,11 @@ const SECTIONS = [
     title: 'Dashboard',
     subtitle: 'Your at-a-glance overview',
     items: [
-      'See your number of customers, the amount billed this month, and your most recent bills.',
-      'Click "New Bill" any time to jump straight into creating a bill.',
+      'Press ⌘K anywhere to search — type a customer\'s name to bill or view them, or run any action.',
+      '"Today\'s route" lists the customers scheduled for today\'s service day, each with a one-click Bill button.',
+      'Overdue bills under "Needs attention" — click one to record a payment right there.',
+      'Every stat tile is a shortcut: clicking Overdue opens Payments with the overdue filter already on.',
+      'The sidebar collapses to icons (arrow button up top) and shows a red overdue count on Payments.',
     ],
   },
   {
@@ -34,6 +37,7 @@ const SECTIONS = [
       'Services, prices, and notes pre-fill from the customer’s last bill, so repeat work is quick.',
       'Each work day needs at least one service with an amount before you can save.',
       'Preview the invoice first, then "Save only" (just record it) or "Save & PDF" (also export it).',
+      'Not done yet? Tick "keep it as a draft" — the bill sits highlighted in its own Drafts section in Bill History until you press "Mark finished".',
       'You can edit any past bill later — it updates in place instead of creating a duplicate.',
     ],
   },

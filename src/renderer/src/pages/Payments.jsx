@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Search, CreditCard, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
 import { billDate, parseDate, paymentOf, paymentStatus, paymentMethodLabel, isOverdue } from '../utils/bills'
@@ -15,8 +16,10 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const PAGE = 25
 
 export default function Payments() {
+  const location = useLocation()
   const [bills, setBills] = useState([])
-  const [filter, setFilter] = useState('all')
+  // Deep links (Dashboard's Overdue tile, command palette) can preset the filter.
+  const [filter, setFilter] = useState(location.state?.filter || 'all')
   const [month, setMonth] = useState('')
   const [year, setYear] = useState('')
   const [search, setSearch] = useState('')
@@ -25,6 +28,10 @@ export default function Payments() {
   const [paymentBill, setPaymentBill] = useState(null)
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (location.state?.filter) setFilter(location.state.filter)
+  }, [location.state])
 
   async function load() {
     const [b, s] = await Promise.all([window.api.bills.getAll(), window.api.settings.get()])
@@ -134,6 +141,7 @@ export default function Payments() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-gray-800 truncate">{bill.customerName}</p>
+                          {bill.draft && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Draft</span>}
                           <StatusBadge status={status} overdue={isOverdue(bill, overdueDays)} />
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">

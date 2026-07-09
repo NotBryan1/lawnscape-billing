@@ -95,3 +95,10 @@ body {
 /* Scrollbar */
 .dark ::-webkit-scrollbar-thumb { background: #30363d; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #45505b; }
+
+/* Command palette entrance */
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.palette-in { animation: palette-in 0.14s ease-out; }

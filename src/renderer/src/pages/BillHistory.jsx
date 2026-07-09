@@ -50,10 +50,23 @@ export default function BillHistory() {
     await window.api.pdf.save(buf, name)
   }
 
+  // Stamp the bill as sent so the customer shows as handled in the list.
+  async function markSent(bill, via) {
+    await window.api.bills.save({ ...bill, lastSentVia: via, lastSentAt: new Date().toISOString() })
+    load()
+  }
+
+  // Confirm a draft is done — it moves into the normal month groups.
+  async function markFinished(bill) {
+    await window.api.bills.save({ ...bill, draft: false })
+    load()
+  }
+
   async function printBill(bill) {
     const buf = await generateBillPDF(bill, settings, { autoPrint: true })
     const name = `invoice-${bill.customerName.replace(/\s+/g, '-')}-${billDate(bill)}.pdf`
     await window.api.pdf.print(buf, name)
+    await markSent(bill, 'print')
   }
 
   async function emailBill(bill) {
@@ -66,6 +79,7 @@ export default function BillHistory() {
       buffer: buf,
       filename: `invoice-${bill.customerName.replace(/\s+/g, '-')}-${billDate(bill)}.pdf`,
     })
+    await markSent(bill, 'email')
   }
 
   // Combine every bill in the current filter into one multi-page PDF.
@@ -99,6 +113,11 @@ export default function BillHistory() {
   if (month) filtered = filtered.filter(b => billDate(b).slice(5, 7) === month)
   // Newest first, oldest at the bottom.
   filtered = [...filtered].sort((a, b) => billDate(b).localeCompare(billDate(a)))
+
+  // Drafts live in their own pinned section until confirmed finished; they're
+  // kept out of the month groups and out of "download all".
+  const draftBills = filtered.filter(b => b.draft)
+  filtered = filtered.filter(b => !b.draft)
 
   const shown = dateFiltered ? filtered : filtered.slice(0, visible)
   const canShowOlder = !dateFiltered && filtered.length > visible
@@ -173,10 +192,36 @@ export default function BillHistory() {
         </div>
       )}
 
+      {/* Drafts — pinned until confirmed finished */}
+      {draftBills.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2 px-1 flex items-center gap-1.5">
+            <Pencil size={12} /> Drafts — still being edited ({draftBills.length})
+          </h2>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-2.5 space-y-2">
+            {draftBills.map(bill => (
+              <BillCard
+                key={bill.id}
+                bill={bill}
+                overdue={false}
+                onPayment={() => setPaymentBill(bill)}
+                onPreview={() => setPreviewBill(bill)}
+                onEdit={() => navigate('/new-bill', { state: { editBill: bill } })}
+                onPrint={() => printBill(bill)}
+                onEmail={() => emailBill(bill)}
+                onReExport={() => reExport(bill)}
+                onDelete={() => setDeleteId(bill.id)}
+                onFinish={() => markFinished(bill)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <FileText size={44} className="mx-auto mb-3 opacity-25" />
-          <p className="text-sm font-medium">No bills found</p>
+          <p className="text-sm font-medium">{draftBills.length ? 'No finished bills here yet' : 'No bills found'}</p>
           {hasFilter && <p className="text-xs mt-1">Try adjusting the filters above</p>}
         </div>
       ) : (
@@ -240,20 +285,34 @@ export default function BillHistory() {
   )
 }
 
-function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmail, onReExport, onDelete }) {
+function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmail, onReExport, onDelete, onFinish }) {
   const days = workDaysOf(bill)
   const multiDay = days.length > 1
   const period = billPeriod(bill)
   const pay = paymentOf(bill)
   const status = paymentStatus(bill)
 
+  const sent = !!bill.lastSentAt
+  const draft = !!bill.draft
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+    <div className={`bg-white rounded-xl shadow-sm border p-4 ${draft ? 'border-amber-200' : sent ? 'border-blue-100' : 'border-gray-100'}`}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-gray-800">{bill.customerName}</p>
+            {draft && (
+              <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <Pencil size={10} /> Draft
+              </span>
+            )}
             <PaymentBadge status={status} overdue={overdue} onClick={onPayment} />
+            {sent && (
+              <span className="text-[10px] font-medium bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                {bill.lastSentVia === 'print' ? <Printer size={10} /> : <Mail size={10} />}
+                {bill.lastSentVia === 'print' ? 'Printed' : 'Emailed'} {format(new Date(bill.lastSentAt), 'MMM d')}
+              </span>
+            )}
             {bill.invoiceNumber && <span className="text-xs text-gray-400">#{bill.invoiceNumber}</span>}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
@@ -282,7 +341,12 @@ function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmai
               {pay.method ? ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
             </p>
           )}
-          <div className="flex gap-1 mt-2 justify-end">
+          <div className="flex items-center gap-1 mt-2 justify-end">
+            {draft && onFinish && (
+              <button onClick={onFinish} className="text-[11px] font-medium bg-green-600 text-white px-2 py-1 rounded-lg hover:bg-green-700 flex items-center gap-1 transition-colors mr-1">
+                <Check size={11} /> Mark finished
+              </button>
+            )}
             <button onClick={onPreview} title="Preview" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Eye size={15} />
             </button>

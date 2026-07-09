@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays, UserPlus, FileSpreadsheet, CheckCircle } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays, UserPlus, FileSpreadsheet, CheckCircle, FilePlus } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
@@ -19,6 +19,8 @@ const SORTS = {
 }
 
 export default function Customers() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [customers, setCustomers] = useState([])
   const [bills, setBills] = useState([])
   const [settings, setSettings] = useState({})
@@ -36,6 +38,11 @@ export default function Customers() {
   const [importMsg, setImportMsg] = useState(null)
 
   useEffect(() => { load() }, [])
+
+  // Deep link from the command palette: open a customer's detail panel directly.
+  useEffect(() => {
+    if (location.state?.detailId) setDetailId(location.state.detailId)
+  }, [location.state])
 
   async function load() {
     const [c, b, s] = await Promise.all([
@@ -187,6 +194,7 @@ export default function Customers() {
                 bills={billsByCustomer[c.id] || []}
                 active
                 onOpen={() => setDetailId(c.id)}
+                onBill={() => navigate('/new-bill', { state: { customerId: c.id } })}
                 onEdit={() => openEdit(c)}
                 onDelete={() => setDeleteId(c.id)}
                 onToggleActive={() => setCustomerActive(c, false)}
@@ -355,7 +363,7 @@ export default function Customers() {
   )
 }
 
-function CustomerRow({ customer: c, bills, active, onOpen, onEdit, onDelete, onToggleActive }) {
+function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDelete, onToggleActive }) {
   const unpaid = bills.filter(b => !b.paid).length
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex items-start justify-between transition-colors ${active ? 'hover:border-green-200' : 'opacity-70'}`}>
@@ -385,6 +393,11 @@ function CustomerRow({ customer: c, bills, active, onOpen, onEdit, onDelete, onT
         </div>
       </button>
       <div className="flex gap-1 mt-0.5 shrink-0">
+        {active && (
+          <button onClick={onBill} title="New bill for this customer" className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+            <FilePlus size={15} />
+          </button>
+        )}
         {active ? (
           <button onClick={onToggleActive} title="Discontinue service" className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
             <UserX size={15} />
@@ -429,6 +442,15 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
         <p className="text-xs text-gray-500 italic bg-gray-100 rounded-lg px-3 py-2 -mt-2 mb-4">{customer.notes}</p>
       )}
 
+      {customer.active !== false && (
+        <button
+          onClick={() => navigate('/new-bill', { state: { customerId: customer.id } })}
+          className="w-full flex items-center justify-center gap-2 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors mb-4"
+        >
+          <FilePlus size={15} /> New bill for {customer.name}
+        </button>
+      )}
+
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Past Bills</p>
 
       {sorted.length === 0 ? (
@@ -452,6 +474,10 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                         ? `${format(parseDate(period.start), 'MMM d')} – ${format(parseDate(period.end), 'MMM d, yyyy')}`
                         : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
                       {!period && days.length > 1 && <span className="text-gray-400 font-normal"> · {days.length} work days</span>}
+                      {bill.draft && <span className="text-xs text-amber-600 font-normal"> · draft</span>}
+                      {bill.lastSentAt && (
+                        <span className="text-xs text-blue-600 font-normal"> · {bill.lastSentVia === 'print' ? 'printed' : 'emailed'} {format(new Date(bill.lastSentAt), 'MMM d')}</span>
+                      )}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {itemsOf(bill).map((item, i) => (

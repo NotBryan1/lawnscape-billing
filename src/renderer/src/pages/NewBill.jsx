@@ -55,15 +55,18 @@ export default function NewBill() {
   const navigate = useNavigate()
   const location = useLocation()
   const editBill = location.state?.editBill || null
+  // A customer can be preselected from elsewhere (Dashboard "Bill", Customers row,
+  // command palette) — the wizard then opens straight on the Work Days step.
+  const preselectId = !editBill ? location.state?.customerId || null : null
   // Tracks which customer the current work days belong to, so we only reset on a
   // genuine customer change (and survive React StrictMode's double-invoked effects).
   const loadedForRef = useRef(editBill ? editBill.customerId : null)
 
-  const [step, setStep] = useState(editBill ? 2 : 0)
+  const [step, setStep] = useState(editBill ? 2 : preselectId ? 1 : 0)
   const [customers, setCustomers] = useState([])
   const [allBills, setAllBills] = useState([])
   const [settings, setSettings] = useState({})
-  const [selectedId, setSelectedId] = useState(editBill?.customerId || '')
+  const [selectedId, setSelectedId] = useState(editBill?.customerId || preselectId || '')
   const [search, setSearch] = useState('')
   const [dayFilter, setDayFilter] = useState('')
   const [template, setTemplate] = useState(() => (editBill ? templateFromBill(editBill) : baseTemplate()))
@@ -73,6 +76,7 @@ export default function NewBill() {
   const [toast, setToast] = useState(null)
   const [previewBill, setPreviewBill] = useState(null)
   const [dupPending, setDupPending] = useState(null)
+  const [isDraft, setIsDraft] = useState(editBill ? !!editBill.draft : false)
   const [editId] = useState(editBill?.id || null)
   // Preserve the existing payment when editing (payment is edited in the Payments tab, not here).
   const [editMeta] = useState(editBill ? { createdAt: editBill.createdAt, periodStart: editBill.periodStart, periodEnd: editBill.periodEnd, ...paymentOf(editBill) } : null)
@@ -84,6 +88,16 @@ export default function NewBill() {
       setAllBills(b)
     })
   }, [])
+
+  // React to a palette/dashboard preselect even if we're already on this page.
+  useEffect(() => {
+    const id = location.state?.customerId
+    if (id && !editBill && id !== selectedId) {
+      setSelectedId(id)
+      setStep(1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   // When the customer changes, pre-fill the services, prices, and notes from their
   // most recent bill so they carry over.
@@ -190,6 +204,7 @@ export default function NewBill() {
       items: flat,
       total: sum,
       notes,
+      draft: isDraft,
       payment: editId
         ? { method: editMeta.method, checkNumber: editMeta.checkNumber, amountPaid }
         : { method: '', checkNumber: '', amountPaid: 0 },
@@ -222,7 +237,11 @@ export default function NewBill() {
         const ok = editId ? 'Bill updated & PDF exported!' : 'Bill saved & PDF exported!'
         showToast(saved ? ok : 'Bill saved (PDF export canceled)')
       } else {
-        showToast(editId ? 'Bill updated!' : 'Bill saved to customer profile!')
+        showToast(
+          bill.draft
+            ? 'Draft saved — finish it any time from Bill History.'
+            : editId ? 'Bill updated!' : 'Bill saved to customer profile!'
+        )
       }
       setTimeout(() => navigate('/history'), 1600)
     } finally {
@@ -460,6 +479,17 @@ export default function NewBill() {
                 <Eye size={15} /> Preview
               </button>
             </div>
+            <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isDraft}
+                onChange={e => setIsDraft(e.target.checked)}
+                className="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+              />
+              <span className="text-xs text-gray-600">
+                Still working on this — keep it as a <span className="font-semibold text-amber-700">draft</span> until I confirm it's finished
+              </span>
+            </label>
             <div className="flex gap-2">
               <button
                 onClick={() => save(false)}

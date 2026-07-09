@@ -9,6 +9,7 @@ import Payments from './pages/Payments'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
+import CommandPalette from './components/CommandPalette'
 import { SettingsProvider } from './SettingsContext'
 import { ThemeProvider } from './ThemeContext'
 
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="/help" element={<Help />} />
             </Routes>
           </main>
+          <CommandPalette />
         </div>
       </HashRouter>
     </SettingsProvider>
