@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Edit2, Trash2, User, X, ChevronDown, FileDown, FileText, Check, Eye, Pencil, Search, UserX, UserCheck, CalendarDays, UserPlus, FileSpreadsheet, CheckCircle, FilePlus } from 'lucide-react'
-import { format } from 'date-fns'
 import { generateBillPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
+import { useLang, fmtDate } from '../i18n'
 
 const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '', serviceDay: '', notes: '' }
 
@@ -19,6 +19,7 @@ const SORTS = {
 }
 
 export default function Customers() {
+  const { t } = useLang()
   const navigate = useNavigate()
   const location = useLocation()
   const [customers, setCustomers] = useState([])
@@ -86,7 +87,7 @@ export default function Customers() {
     setShowChoice(false)
     const res = await window.api.customers.import()
     if (res?.ok) setImportPreview(res.customers)
-    else if (res && !res.canceled) { setImportMsg(res.error || 'Import failed.'); setTimeout(() => setImportMsg(null), 3500) }
+    else if (res && !res.canceled) { setImportMsg(res.error || t('Import failed.')); setTimeout(() => setImportMsg(null), 3500) }
   }
 
   async function confirmImport() {
@@ -95,7 +96,7 @@ export default function Customers() {
     try {
       const n = await window.api.customers.bulkAdd(importPreview)
       setImportPreview(null)
-      setImportMsg(`Imported ${n} ${n === 1 ? 'customer' : 'customers'}.`)
+      setImportMsg(n === 1 ? t('Imported {n} customer.', { n }) : t('Imported {n} customers.', { n }))
       await load()
       setTimeout(() => setImportMsg(null), 3500)
     } finally {
@@ -125,7 +126,7 @@ export default function Customers() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Customers</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{t('Customers')}</h1>
         <div className="flex items-center gap-2">
           <div className="relative">
             <select
@@ -133,8 +134,8 @@ export default function Customers() {
               onChange={e => setDayFilter(e.target.value)}
               className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
             >
-              <option value="">All days</option>
-              {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+              <option value="">{t('All days')}</option>
+              {WEEKDAYS.map(d => <option key={d} value={d}>{t(d)}</option>)}
             </select>
             <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
           </div>
@@ -145,13 +146,13 @@ export default function Customers() {
               className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               {Object.entries(SORTS).map(([k, v]) => (
-                <option key={k} value={k}>Sort: {v.label}</option>
+                <option key={k} value={k}>{t('Sort:')} {t(v.label)}</option>
               ))}
             </select>
             <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
           </div>
           <button onClick={() => setShowChoice(true)} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm">
-            <Plus size={16} /> Add Customer
+            <Plus size={16} /> {t('Add Customer')}
           </button>
         </div>
       </div>
@@ -162,7 +163,7 @@ export default function Customers() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search customers by name, address, phone…"
+            placeholder={t('Search customers by name, address, phone…')}
             className="w-full border border-gray-200 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
           {search && (
@@ -176,13 +177,13 @@ export default function Customers() {
       {customers.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <User size={44} className="mx-auto mb-3 opacity-25" />
-          <p className="font-medium text-sm">No customers saved yet</p>
-          <p className="text-xs mt-1">Click "Add Customer" to get started</p>
+          <p className="font-medium text-sm">{t('No customers saved yet')}</p>
+          <p className="text-xs mt-1">{t('Click "Add Customer" to get started')}</p>
         </div>
       ) : visible.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-12 text-center text-gray-400">
           <Search size={36} className="mx-auto mb-2 opacity-25" />
-          <p className="text-sm font-medium">No customers match "{search}"</p>
+          <p className="text-sm font-medium">{t('No customers match "{q}"', { q: search })}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -201,14 +202,14 @@ export default function Customers() {
               />
             ))}
             {activeList.length === 0 && (
-              <p className="text-sm text-gray-400 px-1 py-4 text-center">No active customers{q ? ' match your search' : ''}.</p>
+              <p className="text-sm text-gray-400 px-1 py-4 text-center">{q ? t('No active customers match your search.') : t('No active customers.')}</p>
             )}
           </div>
 
           {inactiveList.length > 0 && (
             <div>
               <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                Discontinued ({inactiveList.length})
+                {t('Discontinued ({n})', { n: inactiveList.length })}
               </h2>
               <div className="space-y-2">
                 {inactiveList.map(c => (
@@ -248,47 +249,47 @@ export default function Customers() {
 
       {/* Add choice: one customer or import a spreadsheet */}
       {showChoice && (
-        <Modal title="Add customers" onClose={() => setShowChoice(false)}>
+        <Modal title={t('Add customers')} onClose={() => setShowChoice(false)}>
           <div className="space-y-2.5">
             <button onClick={() => { setShowChoice(false); openAdd() }} className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/40 text-left transition-colors">
               <span className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0"><UserPlus size={18} className="text-green-600" /></span>
               <span>
-                <span className="block text-sm font-medium text-gray-800">Add a customer</span>
-                <span className="block text-xs text-gray-400">Enter one customer's details</span>
+                <span className="block text-sm font-medium text-gray-800">{t('Add a customer')}</span>
+                <span className="block text-xs text-gray-400">{t("Enter one customer's details")}</span>
               </span>
             </button>
             <button onClick={handleImport} className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/40 text-left transition-colors">
               <span className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0"><FileSpreadsheet size={18} className="text-blue-600" /></span>
               <span>
-                <span className="block text-sm font-medium text-gray-800">Import from spreadsheet</span>
-                <span className="block text-xs text-gray-400">Upload an Excel or CSV list of customers</span>
+                <span className="block text-sm font-medium text-gray-800">{t('Import from spreadsheet')}</span>
+                <span className="block text-xs text-gray-400">{t('Upload an Excel or CSV list of customers')}</span>
               </span>
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-3 leading-relaxed">
-            Spreadsheet columns (any order): Name, Address, City, State, Zip, Phone, Email, Service Day.
+            {t('Spreadsheet columns (any order): Name, Address, City, State, Zip, Phone, Email, Service Day.')}
           </p>
         </Modal>
       )}
 
       {/* Import preview */}
       {importPreview && (
-        <Modal title="Import customers" onClose={() => setImportPreview(null)} wide>
+        <Modal title={t('Import customers')} onClose={() => setImportPreview(null)} wide>
           {importPreview.length === 0 ? (
             <p className="text-sm text-gray-500 py-6 text-center">
-              No customers were found. Make sure the spreadsheet has a <span className="font-medium text-gray-700">Name</span> column.
+              {t('No customers were found. Make sure the spreadsheet has a ')}<span className="font-medium text-gray-700">{t('Name')}</span>{t(' column.')}
             </p>
           ) : (
             <>
               <p className="text-sm text-gray-600 mb-3">
-                Found <span className="font-semibold">{importPreview.length}</span> {importPreview.length === 1 ? 'customer' : 'customers'} — review and import:
+                {t('Found')} <span className="font-semibold">{importPreview.length}</span> {importPreview.length === 1 ? t('customer — review and import:') : t('customers — review and import:')}
               </p>
               <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
                 {importPreview.map((c, i) => (
                   <div key={i} className="border border-gray-100 rounded-lg px-3 py-2">
                     <p className="text-sm font-medium text-gray-800">{c.name}</p>
                     <p className="text-xs text-gray-400 truncate">
-                      {[c.serviceDay && `${c.serviceDay}s`, [c.address, c.city, c.state, c.zip].filter(Boolean).join(', '), c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+                      {[c.serviceDay && t('{day}s', { day: t(c.serviceDay) }), [c.address, c.city, c.state, c.zip].filter(Boolean).join(', '), c.phone, c.email].filter(Boolean).join(' · ') || '—'}
                     </p>
                   </div>
                 ))}
@@ -296,9 +297,9 @@ export default function Customers() {
             </>
           )}
           <div className="flex gap-3 mt-5">
-            <button onClick={() => setImportPreview(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button onClick={() => setImportPreview(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">{t('Cancel')}</button>
             <button onClick={confirmImport} disabled={importPreview.length === 0 || importing} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
-              {importing ? 'Importing…' : `Import ${importPreview.length} ${importPreview.length === 1 ? 'customer' : 'customers'}`}
+              {importing ? t('Importing…') : (importPreview.length === 1 ? t('Import {n} customer', { n: importPreview.length }) : t('Import {n} customers', { n: importPreview.length }))}
             </button>
           </div>
         </Modal>
@@ -306,56 +307,56 @@ export default function Customers() {
 
       {/* Add / Edit Modal */}
       {showModal && (
-        <Modal title={editId ? 'Edit Customer' : 'Add Customer'} onClose={() => setShowModal(false)}>
+        <Modal title={editId ? t('Edit Customer') : t('Add Customer')} onClose={() => setShowModal(false)}>
           <div className="space-y-3">
-            <Field label="Full Name *" value={form.name} onChange={field('name')} placeholder="John Doe" />
-            <Field label="Address" value={form.address} onChange={field('address')} placeholder="123 Main St" />
+            <Field label={t('Full Name *')} value={form.name} onChange={field('name')} placeholder={t('John Doe')} />
+            <Field label={t('Address')} value={form.address} onChange={field('address')} placeholder={t('123 Main St')} />
             <div className="grid grid-cols-5 gap-2">
-              <div className="col-span-2"><Field label="City" value={form.city} onChange={field('city')} placeholder="Springfield" /></div>
-              <div><Field label="State" value={form.state} onChange={field('state')} placeholder="IL" /></div>
-              <div className="col-span-2"><Field label="ZIP" value={form.zip} onChange={field('zip')} placeholder="62701" /></div>
+              <div className="col-span-2"><Field label={t('City')} value={form.city} onChange={field('city')} placeholder={t('Springfield')} /></div>
+              <div><Field label={t('State')} value={form.state} onChange={field('state')} placeholder={t('IL')} /></div>
+              <div className="col-span-2"><Field label={t('ZIP')} value={form.zip} onChange={field('zip')} placeholder={t('62701')} /></div>
             </div>
-            <Field label="Phone" value={form.phone} onChange={field('phone')} placeholder="555-555-5555" />
-            <Field label="Email" value={form.email} onChange={field('email')} placeholder="john@email.com" />
+            <Field label={t('Phone')} value={form.phone} onChange={field('phone')} placeholder={t('555-555-5555')} />
+            <Field label={t('Email')} value={form.email} onChange={field('email')} placeholder={t('john@email.com')} />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Service day</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('Service day')}</label>
               <div className="relative">
                 <select
                   value={form.serviceDay || ''}
                   onChange={e => field('serviceDay')(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
                 >
-                  <option value="">No set day</option>
-                  {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                  <option value="">{t('No set day')}</option>
+                  {WEEKDAYS.map(d => <option key={d} value={d}>{t(d)}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('Notes')}</label>
               <textarea
                 value={form.notes || ''}
                 onChange={e => field('notes')(e.target.value)}
                 rows={2}
-                placeholder="e.g. Gate code 4482, dog in backyard, skip side yard"
+                placeholder={t('e.g. Gate code 4482, dog in backyard, skip side yard')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
           </div>
           <div className="flex gap-3 mt-5">
-            <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-            <button onClick={handleSave} disabled={!form.name.trim()} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">Save</button>
+            <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">{t('Cancel')}</button>
+            <button onClick={handleSave} disabled={!form.name.trim()} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">{t('Save')}</button>
           </div>
         </Modal>
       )}
 
       {/* Delete confirm */}
       {deleteId && (
-        <Modal title="Delete Customer?" onClose={() => setDeleteId(null)}>
-          <p className="text-sm text-gray-500 mb-4">Their billing history will not be deleted.</p>
+        <Modal title={t('Delete Customer?')} onClose={() => setDeleteId(null)}>
+          <p className="text-sm text-gray-500 mb-4">{t('Their billing history will not be deleted.')}</p>
           <div className="flex gap-3">
-            <button onClick={() => setDeleteId(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm">Cancel</button>
-            <button onClick={handleDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Delete</button>
+            <button onClick={() => setDeleteId(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm">{t('Cancel')}</button>
+            <button onClick={handleDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">{t('Delete')}</button>
           </div>
         </Modal>
       )}
@@ -364,13 +365,14 @@ export default function Customers() {
 }
 
 function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDelete, onToggleActive }) {
+  const { t } = useLang()
   const unpaid = bills.filter(b => !b.paid).length
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex items-start justify-between transition-colors ${active ? 'hover:border-green-200' : 'opacity-70'}`}>
       <button onClick={onOpen} className="text-left flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-semibold text-gray-800">{c.name}</p>
-          {!active && <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Discontinued</span>}
+          {!active && <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{t('Discontinued')}</span>}
         </div>
         {c.address && (
           <p className="text-sm text-gray-500 mt-0.5">
@@ -381,36 +383,36 @@ function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDel
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
           {c.serviceDay && (
             <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
-              <CalendarDays size={12} /> {c.serviceDay}s
+              <CalendarDays size={12} /> {t('{day}s', { day: t(c.serviceDay) })}
             </span>
           )}
           {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
           {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
           <span className="text-xs text-green-700 font-medium">
-            {bills.length} {bills.length === 1 ? 'bill' : 'bills'}
-            {unpaid > 0 && <span className="text-amber-600"> · {unpaid} unpaid</span>}
+            {bills.length === 1 ? t('{n} bill', { n: bills.length }) : t('{n} bills', { n: bills.length })}
+            {unpaid > 0 && <span className="text-amber-600">{t(' · {n} unpaid', { n: unpaid })}</span>}
           </span>
         </div>
       </button>
       <div className="flex gap-1 mt-0.5 shrink-0">
         {active && (
-          <button onClick={onBill} title="New bill for this customer" className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+          <button onClick={onBill} title={t('New bill for this customer')} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
             <FilePlus size={15} />
           </button>
         )}
         {active ? (
-          <button onClick={onToggleActive} title="Discontinue service" className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+          <button onClick={onToggleActive} title={t('Discontinue service')} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
             <UserX size={15} />
           </button>
         ) : (
-          <button onClick={onToggleActive} title="Reactivate" className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+          <button onClick={onToggleActive} title={t('Reactivate')} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
             <UserCheck size={15} />
           </button>
         )}
-        <button onClick={onEdit} title="Edit" className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+        <button onClick={onEdit} title={t('Edit')} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
           <Edit2 size={15} />
         </button>
-        <button onClick={onDelete} title="Delete" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+        <button onClick={onDelete} title={t('Delete')} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
           <Trash2 size={15} />
         </button>
       </div>
@@ -419,6 +421,7 @@ function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDel
 }
 
 function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
+  const { t } = useLang()
   const navigate = useNavigate()
   const [previewBill, setPreviewBill] = useState(null)
   const [paymentBill, setPaymentBill] = useState(null)
@@ -447,16 +450,16 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
           onClick={() => navigate('/new-bill', { state: { customerId: customer.id } })}
           className="w-full flex items-center justify-center gap-2 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors mb-4"
         >
-          <FilePlus size={15} /> New bill for {customer.name}
+          <FilePlus size={15} /> {t('New bill for {name}', { name: customer.name })}
         </button>
       )}
 
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Past Bills</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t('Past Bills')}</p>
 
       {sorted.length === 0 ? (
         <div className="py-10 text-center text-gray-400">
           <FileText size={36} className="mx-auto mb-2 opacity-25" />
-          <p className="text-sm">No bills issued yet</p>
+          <p className="text-sm">{t('No bills issued yet')}</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
@@ -471,18 +474,20 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800">
                       {period
-                        ? `${format(parseDate(period.start), 'MMM d')} – ${format(parseDate(period.end), 'MMM d, yyyy')}`
-                        : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
-                      {!period && days.length > 1 && <span className="text-gray-400 font-normal"> · {days.length} work days</span>}
-                      {bill.draft && <span className="text-xs text-amber-600 font-normal"> · draft</span>}
+                        ? `${fmtDate(parseDate(period.start), 'MMM d')} – ${fmtDate(parseDate(period.end), 'MMM d, yyyy')}`
+                        : fmtDate(parseDate(billDate(bill)), 'MMMM d, yyyy')}
+                      {!period && days.length > 1 && <span className="text-gray-400 font-normal">{t(' · {n} work days', { n: days.length })}</span>}
+                      {bill.draft && <span className="text-xs text-amber-600 font-normal">{t(' · draft')}</span>}
                       {bill.lastSentAt && (
-                        <span className="text-xs text-blue-600 font-normal"> · {bill.lastSentVia === 'print' ? 'printed' : 'emailed'} {format(new Date(bill.lastSentAt), 'MMM d')}</span>
+                        <span className="text-xs text-blue-600 font-normal">{bill.lastSentVia === 'print'
+                          ? t(' · printed {date}', { date: fmtDate(new Date(bill.lastSentAt), 'MMM d') })
+                          : t(' · emailed {date}', { date: fmtDate(new Date(bill.lastSentAt), 'MMM d') })}</span>
                       )}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {itemsOf(bill).map((item, i) => (
                         <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                          {item.name} — ${Number(item.price).toFixed(2)}
+                          {t(item.name)} — ${Number(item.price).toFixed(2)}
                         </span>
                       ))}
                     </div>
@@ -491,7 +496,7 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                     <p className="font-bold text-gray-800">${Number(bill.total).toFixed(2)}</p>
                     {pay.amountPaid > 0 && (
                       <p className="text-[11px] text-gray-400 mt-0.5">
-                        {status === 'partial' ? `Paid $${pay.amountPaid.toFixed(2)}` : 'Paid in full'}
+                        {status === 'partial' ? t('Paid ${amount}', { amount: pay.amountPaid.toFixed(2) }) : t('Paid in full')}
                         {pay.method ? ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
                       </p>
                     )}
@@ -501,13 +506,13 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
                   <PaymentToggle status={status} onClick={() => setPaymentBill(bill)} />
                   <div className="flex items-center gap-3">
                     <button onClick={() => setPreviewBill(bill)} className="text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1 font-medium">
-                      <Eye size={13} /> Preview
+                      <Eye size={13} /> {t('Preview')}
                     </button>
                     <button onClick={() => navigate('/new-bill', { state: { editBill: bill } })} className="text-xs text-gray-500 hover:text-amber-600 flex items-center gap-1 font-medium">
-                      <Pencil size={13} /> Edit
+                      <Pencil size={13} /> {t('Edit')}
                     </button>
                     <button onClick={() => reExport(bill)} className="text-xs text-gray-500 hover:text-green-600 flex items-center gap-1 font-medium">
-                      <FileDown size={13} /> Download
+                      <FileDown size={13} /> {t('Download')}
                     </button>
                   </div>
                 </div>
@@ -518,7 +523,7 @@ function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
       )}
     </Modal>
     {previewBill && (
-      <PdfPreviewModal bill={previewBill} settings={settings} onClose={() => setPreviewBill(null)} downloadLabel="Download" />
+      <PdfPreviewModal bill={previewBill} settings={settings} onClose={() => setPreviewBill(null)} downloadLabel={t('Download')} />
     )}
     {paymentBill && (
       <PaymentModal bill={paymentBill} onClose={() => setPaymentBill(null)} onSaved={onChanged} />
@@ -535,12 +540,13 @@ const TOGGLE_STYLES = {
 const TOGGLE_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Record payment' }
 
 function PaymentToggle({ status, onClick }) {
+  const { t } = useLang()
   return (
     <button
       onClick={onClick}
       className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors ${TOGGLE_STYLES[status]}`}
     >
-      {status === 'paid' && <Check size={12} />} {TOGGLE_LABELS[status]}
+      {status === 'paid' && <Check size={12} />} {t(TOGGLE_LABELS[status])}
     </button>
   )
 }

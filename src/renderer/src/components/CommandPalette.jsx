@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, FilePlus, Repeat, CreditCard, Download, Moon, Sun, User,
-  LayoutDashboard, Users, History, BarChart3, Settings, HelpCircle, CornerDownLeft,
+  LayoutDashboard, Users, History, BarChart3, Settings, HelpCircle, CornerDownLeft, Languages,
 } from 'lucide-react'
 import { useTheme } from '../ThemeContext'
+import { useLang } from '../i18n'
 
 const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
@@ -23,6 +24,7 @@ const NAV = [
 export default function CommandPalette() {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+  const { t, lang, setLang } = useLang()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -67,29 +69,35 @@ export default function CommandPalette() {
   const run = (fn) => { setOpen(false); fn() }
 
   const actionRows = [
-    { label: 'Create a new bill', icon: FilePlus, kw: 'invoice add', go: () => navigate('/new-bill') },
-    { label: 'Run monthly billing', icon: Repeat, kw: 'recurring batch bill everyone', go: () => navigate('/monthly-billing') },
-    { label: 'Record a payment', icon: CreditCard, kw: 'paid money collect', go: () => navigate('/payments') },
-    { label: 'Back up my data', icon: Download, kw: 'backup export save', go: () => window.api.data.export() },
+    { label: t('Create a new bill'), icon: FilePlus, kw: 'invoice add', go: () => navigate('/new-bill') },
+    { label: t('Run monthly billing'), icon: Repeat, kw: 'recurring batch bill everyone', go: () => navigate('/monthly-billing') },
+    { label: t('Record a payment'), icon: CreditCard, kw: 'paid money collect', go: () => navigate('/payments') },
+    { label: t('Back up my data'), icon: Download, kw: 'backup export save', go: () => window.api.data.export() },
     {
-      label: theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',
+      label: theme === 'dark' ? t('Switch to light mode') : t('Switch to dark mode'),
       icon: theme === 'dark' ? Sun : Moon,
       kw: 'theme appearance dark light',
       go: toggleTheme,
     },
+    {
+      label: lang === 'es' ? 'Cambiar a inglés' : 'Cambiar a español',
+      icon: Languages,
+      kw: 'language idioma spanish english español',
+      go: () => setLang(lang === 'es' ? 'en' : 'es'),
+    },
   ].filter(a => !q || `${a.label} ${a.kw}`.toLowerCase().includes(q))
 
   const navRows = NAV
-    .filter(n => !q || `go to ${n.label}`.toLowerCase().includes(q))
-    .map(n => ({ label: `Go to ${n.label}`, icon: n.icon, go: () => navigate(n.to) }))
+    .filter(n => !q || t('Go to {page}', { page: t(n.label) }).toLowerCase().includes(q))
+    .map(n => ({ label: t('Go to {page}', { page: t(n.label) }), icon: n.icon, go: () => navigate(n.to) }))
 
   const custRows = q
     ? customers
         .filter(c => c.active !== false && c.name.toLowerCase().includes(q))
         .slice(0, 5)
         .flatMap(c => [
-          { label: `New bill for ${c.name}`, icon: FilePlus, go: () => navigate('/new-bill', { state: { customerId: c.id } }) },
-          { label: `View ${c.name}`, icon: User, go: () => navigate('/customers', { state: { detailId: c.id } }) },
+          { label: t('New bill for {name}', { name: c.name }), icon: FilePlus, go: () => navigate('/new-bill', { state: { customerId: c.id } }) },
+          { label: t('View {name}', { name: c.name }), icon: User, go: () => navigate('/customers', { state: { detailId: c.id } }) },
         ])
     : []
 
@@ -121,7 +129,7 @@ export default function CommandPalette() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search customers, or type a command…"
+            placeholder={t('Search customers, or type a command…')}
             className="flex-1 bg-transparent text-sm text-gray-800 focus:outline-none"
           />
           <span className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-gray-400">esc</span>
@@ -129,11 +137,11 @@ export default function CommandPalette() {
 
         <div ref={listRef} className="max-h-[46vh] overflow-y-auto py-1.5">
           {flat.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-8">No matches for "{query}"</p>
+            <p className="text-sm text-gray-400 text-center py-8">{t('No matches for "{q}"', { q: query })}</p>
           )}
           {sections.map(section => (
             <div key={section.name}>
-              <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">{section.name}</p>
+              <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">{t(section.name)}</p>
               {section.rows.map(row => {
                 idx++
                 const i = idx
@@ -158,9 +166,9 @@ export default function CommandPalette() {
         </div>
 
         <div className="flex items-center gap-3 px-4 py-2 border-t border-gray-100 text-[11px] text-gray-400">
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>esc close</span>
+          <span>{t('↑↓ navigate')}</span>
+          <span>{t('↵ select')}</span>
+          <span>{t('esc close')}</span>
         </div>
       </div>
     </div>

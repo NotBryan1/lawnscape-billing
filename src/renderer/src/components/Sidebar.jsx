@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useSettings } from '../SettingsContext'
 import { useTheme } from '../ThemeContext'
+import { useLang } from '../i18n'
 import { isOverdue } from '../utils/bills'
 
 const GROUPS = [
@@ -38,6 +39,7 @@ const GROUPS = [
 export default function Sidebar() {
   const { settings } = useSettings()
   const { theme, toggleTheme } = useTheme()
+  const { t } = useLang()
   const location = useLocation()
   const [version, setVersion] = useState('')
   const [overdueCount, setOverdueCount] = useState(0)
@@ -73,18 +75,18 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <p className="font-bold text-sm leading-tight break-words">{name}</p>
-            <p className="text-green-300 dark:text-gray-500 text-xs">Billing Manager</p>
+            <p className="text-green-300 dark:text-gray-500 text-xs">{t('Billing Manager')}</p>
           </div>
         )}
         {!collapsed && (
-          <button onClick={toggleCollapsed} title="Collapse sidebar" className="p-1 rounded text-green-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-200 shrink-0 transition-colors">
+          <button onClick={toggleCollapsed} title={t('Collapse sidebar')} className="p-1 rounded text-green-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-200 shrink-0 transition-colors">
             <PanelLeftClose size={15} />
           </button>
         )}
       </div>
 
       {collapsed && (
-        <button onClick={toggleCollapsed} title="Expand sidebar" className="mx-auto mt-2 p-1.5 rounded text-green-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-200 transition-colors">
+        <button onClick={toggleCollapsed} title={t('Expand sidebar')} className="mx-auto mt-2 p-1.5 rounded text-green-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-200 transition-colors">
           <PanelLeftOpen size={15} />
         </button>
       )}
@@ -92,11 +94,11 @@ export default function Sidebar() {
       {/* Search / command palette */}
       <button
         onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
-        title="Search (⌘K)"
+        title={t('Search (⌘K)')}
         className={`${collapsed ? 'mx-2 justify-center px-0' : 'mx-3 px-3'} mt-3 flex items-center gap-2 py-2 rounded-lg text-sm bg-green-900/50 dark:bg-white/5 text-green-200 dark:text-gray-400 hover:text-white dark:hover:text-gray-100 transition-colors`}
       >
         <Search size={15} className="shrink-0" />
-        {!collapsed && <span className="flex-1 text-left">Search…</span>}
+        {!collapsed && <span className="flex-1 text-left">{t('Search…')}</span>}
         {!collapsed && <span className="text-[10px] border border-green-600 dark:border-white/10 rounded px-1 py-0.5 text-green-300 dark:text-gray-500">⌘K</span>}
       </button>
 
@@ -105,7 +107,7 @@ export default function Sidebar() {
         {GROUPS.map((group, gi) => (
           <div key={gi}>
             {group.label && !collapsed && (
-              <p className="px-6 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-green-400 dark:text-gray-600">{group.label}</p>
+              <p className="px-6 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-green-400 dark:text-gray-600">{t(group.label)}</p>
             )}
             {group.label && collapsed && <div className="mx-4 my-2 border-t border-green-700 dark:border-white/5" />}
             <div className="space-y-0.5">
@@ -113,7 +115,7 @@ export default function Sidebar() {
                 <NavLink
                   key={to}
                   to={to}
-                  title={collapsed ? label : undefined}
+                  title={collapsed ? t(label) : undefined}
                   className={({ isActive }) =>
                     `relative flex items-center ${collapsed ? 'justify-center mx-2 px-0' : 'gap-3 mx-3 px-3'} py-2.5 rounded-lg text-sm transition-colors ${
                       isActive
@@ -123,7 +125,7 @@ export default function Sidebar() {
                   }
                 >
                   <Icon size={17} className="shrink-0" />
-                  {!collapsed && <span className="flex-1">{label}</span>}
+                  {!collapsed && <span className="flex-1">{t(label)}</span>}
                   {badge === 'overdue' && overdueCount > 0 && !collapsed && (
                     <span className="text-[10px] font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{overdueCount}</span>
                   )}
@@ -141,11 +143,11 @@ export default function Sidebar() {
       <div className="p-3 border-t border-green-700 dark:border-white/5">
         <button
           onClick={toggleTheme}
-          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          title={theme === 'dark' ? t('Light mode') : t('Dark mode')}
           className={`w-full flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-lg text-sm text-green-200 dark:text-gray-400 hover:bg-green-700/50 dark:hover:bg-white/5 hover:text-white dark:hover:text-gray-100 transition-colors`}
         >
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-          {!collapsed && (theme === 'dark' ? 'Light mode' : 'Dark mode')}
+          {!collapsed && (theme === 'dark' ? t('Light mode') : t('Dark mode'))}
         </button>
         {version && !collapsed && <p className="text-xs text-green-500 dark:text-gray-600 px-3 pt-2">v{version}</p>}
       </div>

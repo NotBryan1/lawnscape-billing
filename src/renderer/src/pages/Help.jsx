@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, BarChart3, Settings as SettingsIcon, ChevronDown, Leaf, Moon } from 'lucide-react'
+import { useLang } from '../i18n'
 
 const SECTIONS = [
   {
@@ -109,15 +110,16 @@ const SECTIONS = [
 ]
 
 export default function Help() {
+  const { t } = useLang()
   const [open, setOpen] = useState(0)
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="flex items-center gap-2.5 mb-1">
         <Leaf className="text-green-600 shrink-0" size={22} />
-        <h1 className="text-2xl font-bold text-gray-800">How to use Lawnscape</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{t('How to use Lawnscape')}</h1>
       </div>
-      <p className="text-sm text-gray-500 mb-5">A quick tour of everything the app can do — click a section to expand it.</p>
+      <p className="text-sm text-gray-500 mb-5">{t('A quick tour of everything the app can do — click a section to expand it.')}</p>
 
       <div className="space-y-2">
         {SECTIONS.map((s, i) => {
@@ -133,15 +135,15 @@ export default function Help() {
                   <Icon size={18} className="text-green-600" />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-gray-800">{s.title}</span>
-                  <span className="block text-xs text-gray-400">{s.subtitle}</span>
+                  <span className="block text-sm font-semibold text-gray-800">{t(s.title)}</span>
+                  <span className="block text-xs text-gray-400">{t(s.subtitle)}</span>
                 </span>
                 <ChevronDown size={17} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </button>
               {isOpen && (
                 <ul className="pl-16 pr-5 pb-4 pt-0.5 space-y-2 list-disc marker:text-green-400">
                   {s.items.map((it, j) => (
-                    <li key={j} className="text-sm text-gray-600 leading-relaxed">{it}</li>
+                    <li key={j} className="text-sm text-gray-600 leading-relaxed">{t(it)}</li>
                   ))}
                 </ul>
               )}
@@ -151,7 +153,7 @@ export default function Help() {
       </div>
 
       <p className="text-xs text-gray-400 text-center mt-6">
-        Tip: back up your data regularly from Settings so you never lose your customers and bills.
+        {t('Tip: back up your data regularly from Settings so you never lose your customers and bills.')}
       </p>
     </div>
   )

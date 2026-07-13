@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { X, Check } from 'lucide-react'
 import { paymentOf, PAYMENT_METHODS } from '../utils/bills'
+import { useLang } from '../i18n'
 
 // Edit how a bill was paid: method, check number, and amount paid (supports partial).
 export default function PaymentModal({ bill, onClose, onSaved }) {
+  const { t } = useLang()
   const initial = paymentOf(bill)
   const total = Number(bill.total) || 0
   const [method, setMethod] = useState(initial.method)
@@ -37,13 +39,13 @@ export default function PaymentModal({ bill, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-base font-semibold text-gray-800">Payment</h2>
+          <h2 className="text-base font-semibold text-gray-800">{t('Payment')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
-        <p className="text-sm text-gray-500 mb-4">{bill.customerName} · Total <span className="font-semibold text-gray-700">${total.toFixed(2)}</span></p>
+        <p className="text-sm text-gray-500 mb-4">{bill.customerName} · {t('Total')} <span className="font-semibold text-gray-700">${total.toFixed(2)}</span></p>
 
         {/* Method */}
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">Payment method</label>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('Payment method')}</label>
         <div className="grid grid-cols-4 gap-2 mb-3">
           {PAYMENT_METHODS.map(m => (
             <button
@@ -55,7 +57,7 @@ export default function PaymentModal({ bill, onClose, onSaved }) {
                   : 'border-gray-200 text-gray-600 hover:border-green-300'
               }`}
             >
-              {m.label}
+              {t(m.label)}
             </button>
           ))}
         </div>
@@ -63,11 +65,11 @@ export default function PaymentModal({ bill, onClose, onSaved }) {
         {/* Check number */}
         {method === 'check' && (
           <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Check number</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('Check number')}</label>
             <input
               value={checkNumber}
               onChange={e => setCheckNumber(e.target.value)}
-              placeholder="e.g. 1042"
+              placeholder={t('e.g. 1042')}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             />
           </div>
@@ -76,9 +78,9 @@ export default function PaymentModal({ bill, onClose, onSaved }) {
         {/* Amount paid */}
         <div className="mb-1">
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-gray-600">Amount paid</label>
+            <label className="block text-xs font-medium text-gray-600">{t('Amount paid')}</label>
             <button onClick={() => setAmountPaid(String(total))} className="text-xs text-green-600 hover:text-green-700 font-medium">
-              Paid in full
+              {t('Paid in full')}
             </button>
           </div>
           <div className="flex items-center gap-1">
@@ -100,15 +102,15 @@ export default function PaymentModal({ bill, onClose, onSaved }) {
 
         <div className="flex items-center justify-between text-xs mt-2 mb-5">
           {over
-            ? <span className="font-semibold text-red-600">Can't exceed the total of ${total.toFixed(2)}</span>
-            : <span className={`font-semibold ${statusColor}`}>{status}</span>}
-          {!over && paid > 0 && balance > 0 && <span className="text-gray-500">Balance due: ${balance.toFixed(2)}</span>}
+            ? <span className="font-semibold text-red-600">{t("Can't exceed the total of ${amount}", { amount: total.toFixed(2) })}</span>
+            : <span className={`font-semibold ${statusColor}`}>{t(status)}</span>}
+          {!over && paid > 0 && balance > 0 && <span className="text-gray-500">{t('Balance due: ${amount}', { amount: balance.toFixed(2) })}</span>}
         </div>
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">{t('Cancel')}</button>
           <button onClick={handleSave} disabled={saving || over} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
-            <Check size={15} /> {saving ? 'Saving…' : 'Save payment'}
+            <Check size={15} /> {saving ? t('Saving…') : t('Save payment')}
           </button>
         </div>
       </div>

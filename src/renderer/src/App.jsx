@@ -12,9 +12,11 @@ import Help from './pages/Help'
 import CommandPalette from './components/CommandPalette'
 import { SettingsProvider } from './SettingsContext'
 import { ThemeProvider } from './ThemeContext'
+import { LanguageProvider } from './i18n'
 
 export default function App() {
   return (
+    <LanguageProvider>
     <ThemeProvider>
     <SettingsProvider>
       <HashRouter>
@@ -39,5 +41,6 @@ export default function App() {
       </HashRouter>
     </SettingsProvider>
     </ThemeProvider>
+    </LanguageProvider>
   )
 }

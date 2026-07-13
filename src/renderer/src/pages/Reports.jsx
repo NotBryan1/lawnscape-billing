@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { BarChart3, Download, ChevronDown, CheckCircle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { billDate, paymentOf } from '../utils/bills'
+import { useLang } from '../i18n'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export default function Reports() {
+  const { t } = useLang()
   const [bills, setBills] = useState([])
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [exporting, setExporting] = useState(false)
@@ -47,14 +49,14 @@ export default function Reports() {
     try {
       const wb = XLSX.utils.book_new()
       const monthlyRows = monthly.filter(m => m.count > 0).map(m => ({
-        Month: m.name, Bills: m.count, Billed: m.billed, Collected: m.collected, 'Balance due': m.balance,
+        [t('Month')]: t(m.name), [t('Bills')]: m.count, [t('Billed')]: m.billed, [t('Collected')]: m.collected, [t('Balance due')]: m.balance,
       }))
-      monthlyRows.push({ Month: 'TOTAL', Bills: totals.count, Billed: totals.billed, Collected: totals.collected, 'Balance due': outstanding })
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthlyRows), 'Monthly')
+      monthlyRows.push({ [t('Month')]: t('TOTAL'), [t('Bills')]: totals.count, [t('Billed')]: totals.billed, [t('Collected')]: totals.collected, [t('Balance due')]: outstanding })
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthlyRows), t('Monthly'))
       const customerRows = customers.map(c => ({
-        Customer: c.name, Bills: c.count, Billed: c.billed, Collected: c.collected, 'Balance due': Math.max(0, c.billed - c.collected),
+        [t('Customer')]: c.name, [t('Bills')]: c.count, [t('Billed')]: c.billed, [t('Collected')]: c.collected, [t('Balance due')]: Math.max(0, c.billed - c.collected),
       }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(customerRows), 'By customer')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(customerRows), t('By customer'))
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const ok = await window.api.files.save({
         buffer: buf,
@@ -62,7 +64,7 @@ export default function Reports() {
         filterName: 'Excel Spreadsheet',
         extensions: ['xlsx'],
       })
-      if (ok) { setMsg('Report exported!'); setTimeout(() => setMsg(null), 3000) }
+      if (ok) { setMsg(t('Report exported!')); setTimeout(() => setMsg(null), 3000) }
     } finally {
       setExporting(false)
     }
@@ -77,7 +79,7 @@ export default function Reports() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Reports</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{t('Reports')}</h1>
         <div className="flex items-center gap-2">
           <div className="relative">
             <select
@@ -94,7 +96,7 @@ export default function Reports() {
             disabled={yearBills.length === 0 || exporting}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-40 text-sm font-medium shadow-sm"
           >
-            <Download size={15} /> {exporting ? 'Exporting…' : 'Export spreadsheet'}
+            <Download size={15} /> {exporting ? t('Exporting…') : t('Export spreadsheet')}
           </button>
         </div>
       </div>
@@ -102,43 +104,43 @@ export default function Reports() {
       {yearBills.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <BarChart3 size={44} className="mx-auto mb-3 opacity-25" />
-          <p className="text-sm font-medium">No bills in {year}</p>
+          <p className="text-sm font-medium">{t('No bills in {year}', { year })}</p>
         </div>
       ) : (
         <>
           {/* Year totals */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide">Billed in {year}</p>
+              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide">{t('Billed in {year}', { year })}</p>
               <p className="text-2xl font-bold text-green-800">${totals.billed.toFixed(2)}</p>
             </div>
             <div className="bg-emerald-50 rounded-xl p-4 border border-green-100">
-              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide">Collected</p>
+              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide">{t('Collected')}</p>
               <p className="text-2xl font-bold text-green-800">${totals.collected.toFixed(2)}</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-              <p className="text-xs text-amber-700 font-semibold uppercase tracking-wide">Balance due</p>
+              <p className="text-xs text-amber-700 font-semibold uppercase tracking-wide">{t('Balance due')}</p>
               <p className="text-2xl font-bold text-amber-800">${outstanding.toFixed(2)}</p>
             </div>
           </div>
 
           {/* Monthly breakdown */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-4 py-3 border-b border-gray-100">Month by month</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-4 py-3 border-b border-gray-100">{t('Month by month')}</h2>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 border-b border-gray-50">
-                  <th className="text-left font-medium px-4 py-2">Month</th>
-                  <th className="text-right font-medium px-4 py-2">Bills</th>
-                  <th className="text-right font-medium px-4 py-2">Billed</th>
-                  <th className="text-right font-medium px-4 py-2">Collected</th>
-                  <th className="text-right font-medium px-4 py-2">Balance due</th>
+                  <th className="text-left font-medium px-4 py-2">{t('Month')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Bills')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Billed')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Collected')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Balance due')}</th>
                 </tr>
               </thead>
               <tbody>
                 {monthly.map(m => (
                   <tr key={m.name} className={`border-b border-gray-50 last:border-0 ${m.count === 0 ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <td className="px-4 py-2">{m.name}</td>
+                    <td className="px-4 py-2">{t(m.name)}</td>
                     <td className="px-4 py-2 text-right">{m.count || '—'}</td>
                     <td className="px-4 py-2 text-right">{m.count ? `$${m.billed.toFixed(2)}` : '—'}</td>
                     <td className="px-4 py-2 text-right">{m.count ? `$${m.collected.toFixed(2)}` : '—'}</td>
@@ -146,7 +148,7 @@ export default function Reports() {
                   </tr>
                 ))}
                 <tr className="font-semibold text-gray-800 bg-gray-100">
-                  <td className="px-4 py-2">Total</td>
+                  <td className="px-4 py-2">{t('Total')}</td>
                   <td className="px-4 py-2 text-right">{totals.count}</td>
                   <td className="px-4 py-2 text-right">${totals.billed.toFixed(2)}</td>
                   <td className="px-4 py-2 text-right">${totals.collected.toFixed(2)}</td>
@@ -158,15 +160,15 @@ export default function Reports() {
 
           {/* Per-customer totals */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-4 py-3 border-b border-gray-100">By customer</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-4 py-3 border-b border-gray-100">{t('By customer')}</h2>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 border-b border-gray-50">
-                  <th className="text-left font-medium px-4 py-2">Customer</th>
-                  <th className="text-right font-medium px-4 py-2">Bills</th>
-                  <th className="text-right font-medium px-4 py-2">Billed</th>
-                  <th className="text-right font-medium px-4 py-2">Collected</th>
-                  <th className="text-right font-medium px-4 py-2">Balance due</th>
+                  <th className="text-left font-medium px-4 py-2">{t('Customer')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Bills')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Billed')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Collected')}</th>
+                  <th className="text-right font-medium px-4 py-2">{t('Balance due')}</th>
                 </tr>
               </thead>
               <tbody>

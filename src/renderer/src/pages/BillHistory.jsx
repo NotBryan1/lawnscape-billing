@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Trash2, FileDown, ChevronDown, Check, Eye, Download, Pencil, Search, Printer, Mail } from 'lucide-react'
-import { format } from 'date-fns'
+import { useLang, fmtDate } from '../i18n'
 import { generateBillPDF, generateBillsPDF } from '../utils/pdf'
 import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymentStatus, paymentMethodLabel, isOverdue, WEEKDAYS } from '../utils/bills'
 import PdfPreviewModal from '../components/PdfPreviewModal'
@@ -12,6 +12,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 export default function BillHistory() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const [bills, setBills] = useState([])
   const [customers, setCustomers] = useState([])
   const [settings, setSettings] = useState({})
@@ -125,7 +126,7 @@ export default function BillHistory() {
   // Group the shown bills under "Month Year" headers.
   const groups = []
   shown.forEach(b => {
-    const key = format(parseDate(billDate(b)), 'MMMM yyyy')
+    const key = fmtDate(parseDate(billDate(b)), 'MMMM yyyy')
     let g = groups.find(g => g.key === key)
     if (!g) { g = { key, bills: [] }; groups.push(g) }
     g.bills.push(b)
@@ -135,28 +136,28 @@ export default function BillHistory() {
   const monthName = month ? MONTHS[parseInt(month, 10) - 1] : ''
   const searchLabel = search.trim()
   const descParts = []
-  if (searchLabel) descParts.push(`matching "${searchLabel}"`)
-  if (dayFilter) descParts.push(`on ${dayFilter}s`)
-  if (monthName || year) descParts.push(`in ${[monthName, year].filter(Boolean).join(' ')}`)
+  if (searchLabel) descParts.push(t('matching "{q}"', { q: searchLabel }))
+  if (dayFilter) descParts.push(t('on {day}s', { day: t(dayFilter) }))
+  if (monthName || year) descParts.push(t('in {period}', { period: [monthName ? t(monthName) : '', year].filter(Boolean).join(' ') }))
   const filterDescription = descParts.join(' ')
   const downloadLabel = [searchLabel.replace(/\s+/g, '-'), dayFilter, monthName, year].filter(Boolean).join('-') || 'filtered'
 
   return (
     <div className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Bill History</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{t('Bill History')}</h1>
 
         <div className="flex flex-wrap items-center gap-2">
           <Dropdown value={dayFilter} onChange={setDayFilter}>
-            <option value="">All days</option>
-            {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+            <option value="">{t('All days')}</option>
+            {WEEKDAYS.map(d => <option key={d} value={d}>{t(d)}</option>)}
           </Dropdown>
           <Dropdown value={month} onChange={setMonth}>
-            <option value="">All months</option>
-            {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+            <option value="">{t('All months')}</option>
+            {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{t(m)}</option>)}
           </Dropdown>
           <Dropdown value={year} onChange={setYear}>
-            <option value="">All years</option>
+            <option value="">{t('All years')}</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </Dropdown>
           <div className="relative">
@@ -164,7 +165,7 @@ export default function BillHistory() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search customer…"
+              placeholder={t('Search customer…')}
               className="border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             />
           </div>
@@ -173,21 +174,21 @@ export default function BillHistory() {
 
       {!hasFilter && filtered.length > 0 && (
         <p className="text-xs text-gray-400 mb-3">
-          Showing the {Math.min(visible, filtered.length)} most recent of {filtered.length} bills · newest first
+          {t('Showing the {n} most recent of {total} bills · newest first', { n: Math.min(visible, filtered.length), total: filtered.length })}
         </p>
       )}
 
       {hasFilter && filtered.length > 0 && (
         <div className="flex items-center justify-between gap-3 mb-4 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
           <p className="text-xs text-green-800">
-            <span className="font-semibold">{filtered.length}</span> {filtered.length === 1 ? 'bill' : 'bills'} {filterDescription}
+            <span className="font-semibold">{filtered.length}</span> {filtered.length === 1 ? t('bill') : t('bills')} {filterDescription}
           </p>
           <button
             onClick={() => downloadAll(filtered, downloadLabel)}
             disabled={downloading}
             className="flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 shrink-0"
           >
-            <Download size={13} /> {downloading ? 'Preparing…' : 'Download all as PDF'}
+            <Download size={13} /> {downloading ? t('Preparing…') : t('Download all as PDF')}
           </button>
         </div>
       )}
@@ -196,7 +197,7 @@ export default function BillHistory() {
       {draftBills.length > 0 && (
         <div className="mb-6">
           <h2 className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2 px-1 flex items-center gap-1.5">
-            <Pencil size={12} /> Drafts — still being edited ({draftBills.length})
+            <Pencil size={12} /> {t('Drafts — still being edited ({n})', { n: draftBills.length })}
           </h2>
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-2.5 space-y-2">
             {draftBills.map(bill => (
@@ -221,8 +222,8 @@ export default function BillHistory() {
       {shown.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <FileText size={44} className="mx-auto mb-3 opacity-25" />
-          <p className="text-sm font-medium">{draftBills.length ? 'No finished bills here yet' : 'No bills found'}</p>
-          {hasFilter && <p className="text-xs mt-1">Try adjusting the filters above</p>}
+          <p className="text-sm font-medium">{draftBills.length ? t('No finished bills here yet') : t('No bills found')}</p>
+          {hasFilter && <p className="text-xs mt-1">{t('Try adjusting the filters above')}</p>}
         </div>
       ) : (
         <div className="space-y-6">
@@ -254,7 +255,7 @@ export default function BillHistory() {
                 onClick={() => setVisible(v => v + PAGE)}
                 className="text-sm font-medium text-green-600 hover:text-green-700 border border-green-200 hover:bg-green-50 rounded-lg px-5 py-2 transition-colors inline-flex items-center gap-1.5"
               >
-                <ChevronDown size={15} /> Show older bills ({filtered.length - visible} more)
+                <ChevronDown size={15} /> {t('Show older bills ({n} more)', { n: filtered.length - visible })}
               </button>
             </div>
           )}
@@ -264,11 +265,11 @@ export default function BillHistory() {
       {deleteId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
-            <h3 className="font-semibold text-gray-800 mb-1">Delete this bill?</h3>
-            <p className="text-sm text-gray-500 mb-4">This cannot be undone.</p>
+            <h3 className="font-semibold text-gray-800 mb-1">{t('Delete this bill?')}</h3>
+            <p className="text-sm text-gray-500 mb-4">{t('This cannot be undone.')}</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Delete</button>
+              <button onClick={() => setDeleteId(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm">{t('Cancel')}</button>
+              <button onClick={handleDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">{t('Delete')}</button>
             </div>
           </div>
         </div>
@@ -286,6 +287,7 @@ export default function BillHistory() {
 }
 
 function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmail, onReExport, onDelete, onFinish }) {
+  const { t } = useLang()
   const days = workDaysOf(bill)
   const multiDay = days.length > 1
   const period = billPeriod(bill)
@@ -303,29 +305,29 @@ function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmai
             <p className="font-semibold text-gray-800">{bill.customerName}</p>
             {draft && (
               <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                <Pencil size={10} /> Draft
+                <Pencil size={10} /> {t('Draft')}
               </span>
             )}
             <PaymentBadge status={status} overdue={overdue} onClick={onPayment} />
             {sent && (
               <span className="text-[10px] font-medium bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-1">
                 {bill.lastSentVia === 'print' ? <Printer size={10} /> : <Mail size={10} />}
-                {bill.lastSentVia === 'print' ? 'Printed' : 'Emailed'} {format(new Date(bill.lastSentAt), 'MMM d')}
+                {bill.lastSentVia === 'print' ? t('Printed') : t('Emailed')} {fmtDate(new Date(bill.lastSentAt), 'MMM d')}
               </span>
             )}
             {bill.invoiceNumber && <span className="text-xs text-gray-400">#{bill.invoiceNumber}</span>}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
             {period
-              ? `${format(parseDate(period.start), 'MMM d')} – ${format(parseDate(period.end), 'MMM d, yyyy')}`
+              ? `${fmtDate(parseDate(period.start), 'MMM d')} – ${fmtDate(parseDate(period.end), 'MMM d, yyyy')}`
               : multiDay
-                ? `${days.length} work days · ${format(parseDate(days[0].date), 'MMM d')} – ${format(parseDate(days[days.length - 1].date), 'MMM d, yyyy')}`
-                : format(parseDate(billDate(bill)), 'MMMM d, yyyy')}
+                ? `${t('{n} work days', { n: days.length })} · ${fmtDate(parseDate(days[0].date), 'MMM d')} – ${fmtDate(parseDate(days[days.length - 1].date), 'MMM d, yyyy')}`
+                : fmtDate(parseDate(billDate(bill)), 'MMMM d, yyyy')}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {itemsOf(bill).map((item, i) => (
               <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                {item.name} — ${Number(item.price).toFixed(2)}
+                {t(item.name)} — ${Number(item.price).toFixed(2)}
               </span>
             ))}
           </div>
@@ -337,32 +339,32 @@ function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmai
           <p className="font-bold text-gray-800 text-lg">${Number(bill.total).toFixed(2)}</p>
           {pay.amountPaid > 0 && (
             <p className="text-[11px] text-gray-400 mt-0.5">
-              {status === 'partial' ? `Paid $${pay.amountPaid.toFixed(2)}` : 'Paid in full'}
-              {pay.method ? ` · ${paymentMethodLabel(pay.method)}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
+              {status === 'partial' ? t('Paid ${amount}', { amount: pay.amountPaid.toFixed(2) }) : t('Paid in full')}
+              {pay.method ? ` · ${t(paymentMethodLabel(pay.method))}${pay.method === 'check' && pay.checkNumber ? ` #${pay.checkNumber}` : ''}` : ''}
             </p>
           )}
           <div className="flex items-center gap-1 mt-2 justify-end">
             {draft && onFinish && (
               <button onClick={onFinish} className="text-[11px] font-medium bg-green-600 text-white px-2 py-1 rounded-lg hover:bg-green-700 flex items-center gap-1 transition-colors mr-1">
-                <Check size={11} /> Mark finished
+                <Check size={11} /> {t('Mark finished')}
               </button>
             )}
-            <button onClick={onPreview} title="Preview" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button onClick={onPreview} title={t('Preview')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Eye size={15} />
             </button>
-            <button onClick={onEdit} title="Edit bill" className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+            <button onClick={onEdit} title={t('Edit bill')} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
               <Pencil size={15} />
             </button>
-            <button onClick={onPrint} title="Print" className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={onPrint} title={t('Print')} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
               <Printer size={15} />
             </button>
-            <button onClick={onEmail} title="Email to customer" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button onClick={onEmail} title={t('Email to customer')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Mail size={15} />
             </button>
-            <button onClick={onReExport} title="Download PDF" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+            <button onClick={onReExport} title={t('Download PDF')} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
               <FileDown size={15} />
             </button>
-            <button onClick={onDelete} title="Delete" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <button onClick={onDelete} title={t('Delete')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
               <Trash2 size={15} />
             </button>
           </div>
@@ -380,20 +382,21 @@ const STATUS_STYLES = {
 const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
 
 function PaymentBadge({ status, overdue, onClick }) {
+  const { t } = useLang()
   if (overdue) {
     return (
-      <button onClick={onClick} title="Edit payment" className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
-        Overdue
+      <button onClick={onClick} title={t('Edit payment')} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+        {t('Overdue')}
       </button>
     )
   }
   return (
     <button
       onClick={onClick}
-      title="Edit payment"
+      title={t('Edit payment')}
       className={`text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${STATUS_STYLES[status]}`}
     >
-      {status === 'paid' && <Check size={11} />} {STATUS_LABELS[status]}
+      {status === 'paid' && <Check size={11} />} {t(STATUS_LABELS[status])}
     </button>
   )
 }

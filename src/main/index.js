@@ -42,15 +42,20 @@ const DAY_NORMAL = {
   wed: 'Wednesday', weds: 'Wednesday', wednesday: 'Wednesday', thu: 'Thursday', thur: 'Thursday',
   thurs: 'Thursday', thursday: 'Thursday', fri: 'Friday', friday: 'Friday',
   sat: 'Saturday', saturday: 'Saturday', sun: 'Sunday', sunday: 'Sunday',
+  // Spanish day names (accents are stripped before lookup)
+  lunes: 'Monday', martes: 'Tuesday', miercoles: 'Wednesday', jueves: 'Thursday',
+  viernes: 'Friday', sabado: 'Saturday', domingo: 'Sunday',
 }
+const stripAccents = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')
 function normalizeDay(s) {
-  return DAY_NORMAL[String(s).toLowerCase().trim()] || ''
+  return DAY_NORMAL[stripAccents(s).toLowerCase().trim()] || ''
 }
 function parseCustomersFromSheet(filePath) {
   const wb = XLSX.readFile(filePath)
   const sheet = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-  const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '')
+  // Headers match in English or Spanish, accents ignored.
+  const norm = s => stripAccents(s).toLowerCase().replace(/[^a-z]/g, '')
   return rows
     .map(row => {
       const get = (...keys) => {
@@ -61,14 +66,14 @@ function parseCustomersFromSheet(filePath) {
         return ''
       }
       return {
-        name: get('name', 'customer', 'fullname'),
-        address: get('address', 'street'),
-        city: get('city'),
-        state: get('state'),
-        zip: get('zip', 'postal'),
-        phone: get('phone', 'tel'),
-        email: get('email'),
-        serviceDay: normalizeDay(get('serviceday', 'day')),
+        name: get('name', 'customer', 'fullname', 'nombre', 'cliente'),
+        address: get('address', 'street', 'direccion', 'calle'),
+        city: get('city', 'ciudad'),
+        state: get('state', 'estado'),
+        zip: get('zip', 'postal', 'codigopostal'),
+        phone: get('phone', 'tel', 'telefono'),
+        email: get('email', 'correo'),
+        serviceDay: normalizeDay(get('serviceday', 'diadeservicio', 'day', 'dia')),
       }
     })
     .filter(c => c.name)

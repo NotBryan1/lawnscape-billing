@@ -4,6 +4,7 @@ import { Calendar, Check, Download, CheckCircle, Repeat, ChevronRight, ChevronDo
 import { format } from 'date-fns'
 import { itemsOf, billDate, parseDate, weekdayIndex, WEEKDAYS } from '../utils/bills'
 import { generateBillsPDF } from '../utils/pdf'
+import { useLang } from '../i18n'
 
 const uuid = () => crypto.randomUUID()
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -31,6 +32,7 @@ function visitDates(serviceDay, from, to) {
 
 export default function MonthlyBilling() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const now = new Date()
   const [customers, setCustomers] = useState([])
   const [bills, setBills] = useState([])
@@ -190,17 +192,17 @@ export default function MonthlyBilling() {
       <div className="p-6 max-w-2xl mx-auto">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <CheckCircle size={48} className="mx-auto mb-3 text-green-500" />
-          <h1 className="text-xl font-bold text-gray-800">Created {created.length} {created.length === 1 ? 'bill' : 'bills'}</h1>
-          <p className="text-sm text-gray-500 mt-1">{MONTHS[month]} {year} · ${total.toFixed(2)} total</p>
+          <h1 className="text-xl font-bold text-gray-800">{t(created.length === 1 ? 'Created {n} bill' : 'Created {n} bills', { n: created.length })}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t(MONTHS[month])} {year} · ${total.toFixed(2)} {t('total')}</p>
           <div className="flex gap-2 justify-center mt-6">
             <button onClick={downloadAll} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 text-sm font-medium">
-              <Download size={16} /> Download all as PDF
+              <Download size={16} /> {t('Download all as PDF')}
             </button>
             <button onClick={() => navigate('/history')} className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 text-sm font-medium">
-              View in Bill History <ChevronRight size={15} />
+              {t('View in Bill History')} <ChevronRight size={15} />
             </button>
           </div>
-          <button onClick={() => { setCreated(null); setOverrides({}) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">Done</button>
+          <button onClick={() => { setCreated(null); setOverrides({}) }} className="text-xs text-gray-400 hover:text-gray-600 mt-5">{t('Done')}</button>
         </div>
       </div>
     )
@@ -208,26 +210,26 @@ export default function MonthlyBilling() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Monthly Billing</h1>
-      <p className="text-sm text-gray-500 mb-5">Bills each repeat customer for every visit on their service day in the month, using the services &amp; prices from their last bill.</p>
+      <h1 className="text-2xl font-bold text-gray-800 mb-1">{t('Monthly Billing')}</h1>
+      <p className="text-sm text-gray-500 mb-5">{t('Bills each repeat customer for every visit on their service day in the month, using the services & prices from their last bill.')}</p>
 
       {rows.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-16 text-center text-gray-400">
           <Repeat size={44} className="mx-auto mb-3 opacity-25" />
-          <p className="text-sm font-medium">No repeat customers yet</p>
-          <p className="text-xs mt-1">Create a first bill for a customer in <button onClick={() => navigate('/new-bill')} className="underline">New Bill</button>, then they'll appear here.</p>
+          <p className="text-sm font-medium">{t('No repeat customers yet')}</p>
+          <p className="text-xs mt-1">{t('Create a first bill for a customer in')} <button onClick={() => navigate('/new-bill')} className="underline">{t('New Bill')}</button>{t(", then they'll appear here.")}</p>
         </div>
       ) : (
         <>
           {/* Billing month */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Billing month</label>
-            <p className="text-xs text-gray-400 mb-3">Each customer is billed for every occurrence of their service day this month — each visit is dated on the invoice.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Billing month')}</label>
+            <p className="text-xs text-gray-400 mb-3">{t('Each customer is billed for every occurrence of their service day this month — each visit is dated on the invoice.')}</p>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Calendar size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
                 <select value={month} onChange={e => setMonth(Number(e.target.value))} className="border border-gray-200 rounded-lg pl-9 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
-                  {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                  {MONTHS.map((m, i) => <option key={m} value={i}>{t(m)}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
@@ -247,14 +249,14 @@ export default function MonthlyBilling() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search customers…"
+                placeholder={t('Search customers…')}
                 className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
             <div className="relative">
               <select value={dayFilter} onChange={e => setDayFilter(e.target.value)} className="border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
-                <option value="">All days</option>
-                {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                <option value="">{t('All days')}</option>
+                {WEEKDAYS.map(d => <option key={d} value={d}>{t(d)}</option>)}
               </select>
               <ChevronDown size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
             </div>
@@ -264,22 +266,22 @@ export default function MonthlyBilling() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
               <button onClick={toggleAll} className="text-sm font-medium text-green-600 hover:text-green-700">
-                {allSelected ? 'Clear all' : 'Select all'}
+                {allSelected ? t('Clear all') : t('Select all')}
               </button>
-              <span className="text-xs text-gray-400">{selectedRows.length} selected</span>
+              <span className="text-xs text-gray-400">{t('{n} selected', { n: selectedRows.length })}</span>
             </div>
             <div className="divide-y divide-gray-50 max-h-[45vh] overflow-y-auto">
               {displayToBill.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">
-                  {displayBilled.length ? 'Everyone matching is already billed for this month.' : 'No customers to bill.'}
+                  {displayBilled.length ? t('Everyone matching is already billed for this month.') : t('No customers to bill.')}
                 </p>
               ) : displayToBill.map(r => {
                 const id = r.customer.id
                 const canBill = r.visits.length > 0
                 const isOn = canBill && selected.has(id)
                 const expanded = expandedId === id
-                const dayText = r.serviceDay ? `${r.serviceDay}s` : 'No set day'
-                const visitText = canBill ? `${r.visits.length} ${r.visits.length === 1 ? 'visit' : 'visits'}` : 'no visits this month'
+                const dayText = r.serviceDay ? t('{day}s', { day: t(r.serviceDay) }) : t('No set day')
+                const visitText = canBill ? t(r.visits.length === 1 ? '{n} visit' : '{n} visits', { n: r.visits.length }) : t('no visits this month')
                 return (
                   <div key={id} className={`transition-colors ${isOn ? 'bg-green-50' : ''} ${canBill ? '' : 'opacity-60'}`}>
                     <div className="px-4 py-3 flex items-center gap-3">
@@ -291,20 +293,20 @@ export default function MonthlyBilling() {
                           <p className="text-sm font-medium text-gray-800">{r.customer.name}</p>
                           <p className="text-xs text-gray-400 truncate">
                             <span className={canBill ? 'text-blue-600' : 'text-amber-600'}>{dayText} · {visitText}</span>
-                            {r.items.length ? ` · ${r.items.map(i => i.name).join(', ')}` : ''}
+                            {r.items.length ? ` · ${r.items.map(i => t(i.name)).join(', ')}` : ''}
                           </p>
                         </div>
                       </button>
                       <span className="text-sm font-semibold text-gray-700 shrink-0 w-20 text-right">{canBill ? `$${r.total.toFixed(2)}` : '—'}</span>
                       {canBill && (
-                        <button onClick={() => setExpandedId(expanded ? null : id)} title="Edit visit dates" className="p-1.5 text-gray-400 hover:text-blue-600 shrink-0">
+                        <button onClick={() => setExpandedId(expanded ? null : id)} title={t('Edit visit dates')} className="p-1.5 text-gray-400 hover:text-blue-600 shrink-0">
                           <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
                         </button>
                       )}
                     </div>
                     {expanded && canBill && (
                       <div className="px-4 pb-3.5 pl-12">
-                        <p className="text-xs text-gray-400 mb-2">Visit dates — adjust if a service was done on a different day.</p>
+                        <p className="text-xs text-gray-400 mb-2">{t('Visit dates — adjust if a service was done on a different day.')}</p>
                         <div className="space-y-1.5">
                           {r.visits.map((date, idx) => (
                             <div key={idx} className="flex items-center gap-2">
@@ -321,7 +323,7 @@ export default function MonthlyBilling() {
                           ))}
                         </div>
                         <button onClick={() => addVisit(r)} className="mt-2 text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
-                          <Plus size={12} /> Add a day
+                          <Plus size={12} /> {t('Add a day')}
                         </button>
                       </div>
                     )}
@@ -336,17 +338,17 @@ export default function MonthlyBilling() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
               <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
                 <Check size={14} className="text-green-600" />
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Already billed for {MONTHS[month]} {year}</span>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('Already billed for {month} {year}', { month: t(MONTHS[month]), year })}</span>
               </div>
               <div className="divide-y divide-gray-50 max-h-[30vh] overflow-y-auto">
                 {displayBilled.map(r => (
                   <div key={r.customer.id} className="px-4 py-3 flex items-center justify-between gap-3 opacity-70">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{r.customer.name}</p>
-                      <p className="text-xs text-gray-400">{r.serviceDay ? `${r.serviceDay}s` : 'No set day'}</p>
+                      <p className="text-xs text-gray-400">{r.serviceDay ? t('{day}s', { day: t(r.serviceDay) }) : t('No set day')}</p>
                     </div>
                     <span className="text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
-                      <Check size={11} /> Billed
+                      <Check size={11} /> {t('Billed')}
                     </span>
                   </div>
                 ))}
@@ -356,14 +358,16 @@ export default function MonthlyBilling() {
 
           {noHistoryCount > 0 && (
             <p className="text-xs text-gray-400 mb-4">
-              {noHistoryCount} {noHistoryCount === 1 ? 'customer has' : 'customers have'} no past bill yet and aren't shown — bill them once from New Bill first.
+              {t(noHistoryCount === 1
+                ? "{n} customer has no past bill yet and aren't shown — bill them once from New Bill first."
+                : "{n} customers have no past bill yet and aren't shown — bill them once from New Bill first.", { n: noHistoryCount })}
             </p>
           )}
 
           {/* Generate */}
           <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-green-700 font-semibold uppercase tracking-wider">Total to bill</p>
+              <p className="text-xs text-green-700 font-semibold uppercase tracking-wider">{t('Total to bill')}</p>
               <p className="text-3xl font-bold text-green-800">${grandTotal.toFixed(2)}</p>
             </div>
             <button
@@ -372,7 +376,7 @@ export default function MonthlyBilling() {
               className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium text-sm shadow-sm"
             >
               <Repeat size={16} />
-              {generating ? 'Creating…' : `Create ${selectedRows.length} ${selectedRows.length === 1 ? 'bill' : 'bills'}`}
+              {generating ? t('Creating…') : t(selectedRows.length === 1 ? 'Create {n} bill' : 'Create {n} bills', { n: selectedRows.length })}
             </button>
           </div>
         </>
