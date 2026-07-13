@@ -30,7 +30,7 @@ function templateFromBill(bill) {
 }
 
 function dayFromTemplate(tpl, date) {
-  return { id: uuid(), date, items: tpl.map(t => ({ ...t, id: uuid() })) }
+  return { id: uuid(), date, items: tpl.map(t => ({ ...t, id: uuid() })), note: '', showNote: false }
 }
 
 // Convert an existing bill's work days into the wizard's editable item shape.
@@ -38,6 +38,8 @@ function daysFromBill(bill) {
   return workDaysOf(bill).map(d => ({
     id: uuid(),
     date: d.date,
+    note: d.note || '',
+    showNote: !!(d.note && String(d.note).trim()),
     items: [
       ...DEFAULT_SERVICES.map(name => {
         const found = (d.items || []).find(i => i.name === name)
@@ -145,6 +147,8 @@ export default function NewBill() {
   const addCustom = (dayId) => updateDay(dayId, d => ({ ...d, items: [...d.items, { id: uuid(), name: '', price: '', enabled: true, isDefault: false }] }))
   const removeItem = (dayId, itemId) => updateDay(dayId, d => ({ ...d, items: d.items.filter(i => i.id !== itemId) }))
   const setDayDate = (dayId, v) => updateDay(dayId, d => ({ ...d, date: v }))
+  const setDayNote = (dayId, v) => updateDay(dayId, d => ({ ...d, note: v }))
+  const toggleDayNote = (dayId) => updateDay(dayId, d => ({ ...d, showNote: !d.showNote }))
 
   // --- work day add/remove ---
   const addWorkDay = () => setWorkDays(prev => [...prev, dayFromTemplate(template, today())])
@@ -183,6 +187,8 @@ export default function NewBill() {
         id: d.id,
         date: d.date,
         items: enabledItems(d).map(i => ({ name: i.name.trim(), price: parseFloat(i.price) })),
+        // Per-day note is only kept when its checkbox is on and it has content.
+        ...(d.showNote && d.note && d.note.trim() ? { note: d.note.trim() } : {}),
       }))
       .filter(d => d.items.length > 0)
       .sort((a, b) => (a.date || '').localeCompare(b.date || '')) // store oldest → newest
@@ -451,6 +457,24 @@ export default function NewBill() {
                   </div>
                 ))}
               </div>
+              <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!day.showNote}
+                  onChange={() => toggleDayNote(day.id)}
+                  className="h-4 w-4 rounded accent-green-600 cursor-pointer shrink-0"
+                />
+                <span className="text-xs text-gray-600">{t('Add a note for this day')}</span>
+              </label>
+              {day.showNote && (
+                <textarea
+                  value={day.note || ''}
+                  onChange={e => setDayNote(day.id, e.target.value)}
+                  rows={2}
+                  placeholder={t('e.g. Trimmed hedges, hauled branches, extra bags of mulch…')}
+                  className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              )}
               {!dayComplete(day) && (
                 <p className="text-xs text-amber-600 mt-2.5">{t('Select at least one service and enter an amount for this day.')}</p>
               )}

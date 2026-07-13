@@ -110,6 +110,19 @@ function renderBill(doc, bill, settings) {
       y += 7
       rowIdx++
     })
+    // Optional note for this specific day
+    if (day.note && String(day.note).trim()) {
+      y = ensureSpace(doc, y, 10)
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(8.5)
+      doc.setTextColor(120, 120, 120)
+      const noteLines = doc.splitTextToSize(`Note: ${String(day.note).trim()}`, W - 48)
+      doc.text(noteLines, multiDay ? 24 : 19, y + 4)
+      y += noteLines.length * 4 + 3
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(0, 0, 0)
+    }
   })
 
   // Total row
