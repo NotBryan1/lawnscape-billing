@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, Download, ChevronDown, CheckCircle } from 'lucide-react'
+import { BarChart3, Download, ChevronDown, CheckCircle, Printer } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { billDate, paymentOf } from '../utils/bills'
-import { useLang } from '../i18n'
+import { generateDirectoryPDF } from '../utils/pdf'
+import { useLang, fmtDate } from '../i18n'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export default function Reports() {
   const { t } = useLang()
   const [bills, setBills] = useState([])
+  const [allCustomers, setAllCustomers] = useState([])
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [exporting, setExporting] = useState(false)
   const [msg, setMsg] = useState(null)
 
-  useEffect(() => { window.api.bills.getAll().then(setBills) }, [])
+  useEffect(() => {
+    Promise.all([window.api.bills.getAll(), window.api.customers.getAll()]).then(([b, c]) => {
+      setBills(b)
+      setAllCustomers(c)
+    })
+  }, [])
 
   const years = [...new Set([String(new Date().getFullYear()), ...bills.map(b => billDate(b).slice(0, 4)).filter(Boolean)])].sort().reverse()
   const yearBills = bills.filter(b => billDate(b).startsWith(year + '-'))
@@ -68,6 +75,63 @@ export default function Reports() {
     } finally {
       setExporting(false)
     }
+  }
+
+  // Client directory: every active customer with contact info and their
+  // average charge per month (averaged over the months they were billed).
+  const dirRows = allCustomers
+    .filter(c => c.active !== false)
+    .map(c => {
+      const theirs = bills.filter(b => b.customerId === c.id)
+      const months = new Set(theirs.map(b => billDate(b).slice(0, 7)))
+      const total = theirs.reduce((s, b) => s + (Number(b.total) || 0), 0)
+      return {
+        c,
+        address: [c.address, c.city, c.state, c.zip].filter(Boolean).join(', '),
+        avg: months.size ? total / months.size : null,
+      }
+    })
+    .sort((a, b) => a.c.name.localeCompare(b.c.name, undefined, { sensitivity: 'base' }))
+
+  async function printDirectory() {
+    const buf = await generateDirectoryPDF(
+      dirRows.map(r => ({
+        name: r.c.name,
+        address: r.address,
+        contact: [r.c.phone, r.c.email].filter(Boolean),
+        avg: r.avg != null ? `$${r.avg.toFixed(2)}` : '—',
+      })),
+      {
+        title: t('Client directory'),
+        subtitle: `${t('Generated {date}', { date: fmtDate(new Date(), 'MMMM d, yyyy') })} · ${t('{n} clients', { n: dirRows.length })}`,
+        name: t('Name'),
+        address: t('Address'),
+        contact: t('Contact'),
+        avg: t('Avg / month'),
+      },
+      { autoPrint: true }
+    )
+    await window.api.pdf.print(buf, 'client-directory.pdf')
+  }
+
+  async function exportDirectory() {
+    const rows = dirRows.map(r => ({
+      [t('Name')]: r.c.name,
+      [t('Address')]: r.address,
+      [t('Phone')]: r.c.phone || '',
+      [t('Email')]: r.c.email || '',
+      [t('Avg / month')]: r.avg != null ? Number(r.avg.toFixed(2)) : '',
+    }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), t('Customers'))
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const ok = await window.api.files.save({
+      buffer: buf,
+      filename: 'lawnscape-clients.xlsx',
+      filterName: 'Excel Spreadsheet',
+      extensions: ['xlsx'],
+    })
+    if (ok) { setMsg(t('Client list exported!')); setTimeout(() => setMsg(null), 3000) }
   }
 
   return (
@@ -189,6 +253,60 @@ export default function Reports() {
           </div>
         </>
       )}
+
+      {/* Client directory — printable roster with contact info and averages */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
+          <div>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('Client directory')}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{t('Every active client with contact info and their average charge per billed month.')}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={printDirectory}
+              disabled={!dirRows.length}
+              className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-40 text-xs font-medium transition-colors"
+            >
+              <Printer size={13} /> {t('Print')}
+            </button>
+            <button
+              onClick={exportDirectory}
+              disabled={!dirRows.length}
+              className="flex items-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40 text-xs font-medium transition-colors"
+            >
+              <Download size={13} /> {t('Export spreadsheet')}
+            </button>
+          </div>
+        </div>
+        {dirRows.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-10">{t('No active customers.')}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-400 border-b border-gray-50">
+                <th className="text-left font-medium px-4 py-2">{t('Name')}</th>
+                <th className="text-left font-medium px-4 py-2">{t('Address')}</th>
+                <th className="text-left font-medium px-4 py-2">{t('Contact')}</th>
+                <th className="text-right font-medium px-4 py-2">{t('Avg / month')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dirRows.map(r => (
+                <tr key={r.c.id} className="border-b border-gray-50 last:border-0 text-gray-700 align-top">
+                  <td className="px-4 py-2 font-medium text-gray-800">{r.c.name}</td>
+                  <td className="px-4 py-2 text-xs text-gray-500">{r.address || '—'}</td>
+                  <td className="px-4 py-2 text-xs text-gray-500">
+                    {r.c.phone && <p>{r.c.phone}</p>}
+                    {r.c.email && <p>{r.c.email}</p>}
+                    {!r.c.phone && !r.c.email && '—'}
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium">{r.avg != null ? `$${r.avg.toFixed(2)}` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }

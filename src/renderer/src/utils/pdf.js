@@ -175,6 +175,71 @@ export async function generateBillsPDF(bills, settings) {
   return doc.output('arraybuffer')
 }
 
+// Owner-facing printable client directory. Labels arrive already translated
+// (this report follows the app language; invoices always stay English).
+export async function generateDirectoryPDF(rows, labels, opts = {}) {
+  const doc = new jsPDF()
+  const W = doc.internal.pageSize.getWidth()
+  const H = doc.internal.pageSize.getHeight()
+  const X = { name: 14, address: 62, contact: 126, avg: W - 14 }
+  const WIDTHS = { name: 44, address: 60, contact: 46 }
+
+  let y = 16
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  doc.text(labels.title, 14, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(130, 130, 130)
+  doc.text(labels.subtitle, 14, y + 6)
+  doc.setTextColor(0, 0, 0)
+  y += 13
+
+  const drawHeader = () => {
+    doc.setFillColor(34, 139, 34)
+    doc.rect(14, y, W - 28, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text(labels.name, X.name + 2, y + 5.5)
+    doc.text(labels.address, X.address, y + 5.5)
+    doc.text(labels.contact, X.contact, y + 5.5)
+    doc.text(labels.avg, X.avg - 2, y + 5.5, { align: 'right' })
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    y += 8
+  }
+  drawHeader()
+
+  rows.forEach((r, i) => {
+    const nameLines = doc.splitTextToSize(r.name, WIDTHS.name)
+    const addrLines = r.address ? doc.splitTextToSize(r.address, WIDTHS.address) : ['—']
+    const contactLines = r.contact.length
+      ? r.contact.flatMap(cLine => doc.splitTextToSize(cLine, WIDTHS.contact))
+      : ['—']
+    const lineCount = Math.max(nameLines.length, addrLines.length, contactLines.length)
+    const rowH = lineCount * 3.8 + 3
+    if (y + rowH > H - 16) {
+      doc.addPage()
+      y = 16
+      drawHeader()
+    }
+    if (i % 2 === 0) {
+      doc.setFillColor(245, 248, 245)
+      doc.rect(14, y, W - 28, rowH, 'F')
+    }
+    doc.text(nameLines, X.name + 2, y + 4.5)
+    doc.text(addrLines, X.address, y + 4.5)
+    doc.text(contactLines, X.contact, y + 4.5)
+    doc.text(r.avg, X.avg - 2, y + 4.5, { align: 'right' })
+    y += rowH
+  })
+
+  if (opts.autoPrint && typeof doc.autoPrint === 'function') doc.autoPrint()
+  return doc.output('arraybuffer')
+}
+
 function formatDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {
