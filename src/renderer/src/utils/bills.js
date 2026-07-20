@@ -9,13 +9,20 @@ const DEFAULT_SERVICES = ['Lawn Mowing', 'Mulch', 'Maintenance']
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const DOW_INDEX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }
 
-// JS Date.getDay() index (0=Sun) for a weekday name, or -1 if unknown.
+/**
+ * JS `Date.getDay()` index (0 = Sunday) for a weekday name.
+ * @param {string} name e.g. 'Monday'
+ * @returns {number} 0-6, or -1 if unrecognized
+ */
 export function weekdayIndex(name) {
   return name in DOW_INDEX ? DOW_INDEX[name] : -1
 }
 
-// Returns an array of { id, date, items } for a bill, sorted oldest → newest,
-// regardless of whether it uses the new `workDays` shape or the legacy single-day shape.
+/**
+ * Every work day on a bill, oldest → newest, regardless of storage shape.
+ * @param {object} bill
+ * @returns {Array<{id: string, date: string, items: object[]}>}
+ */
 export function workDaysOf(bill) {
   const days = (Array.isArray(bill.workDays) && bill.workDays.length)
     ? bill.workDays
@@ -23,13 +30,18 @@ export function workDaysOf(bill) {
   return [...days].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 }
 
-// All line items across every work day, flattened.
+/** All line items across every work day on a bill, flattened into one array. */
 export function itemsOf(bill) {
   return workDaysOf(bill).flatMap(d => d.items || [])
 }
 
-// The bill's primary date (the most recent work day) — used for sorting,
-// list display, and month/year filtering. Dates are 'yyyy-MM-dd' strings.
+/**
+ * The bill's primary date — its period end if it has one, otherwise its
+ * most recent work day. Used for sorting, list display, and month/year
+ * filtering.
+ * @param {object} bill
+ * @returns {string} 'yyyy-MM-dd', or '' if the bill has no dates at all
+ */
 export function billDate(bill) {
   if (bill.periodEnd) return bill.periodEnd
   if (bill.date) return bill.date
@@ -37,28 +49,39 @@ export function billDate(bill) {
   return dates[dates.length - 1] || ''
 }
 
-// A service period range { start, end } for bills billed over a span (e.g. monthly
-// billing), or null for single-date/multi-day bills.
+/**
+ * The service period a bill covers (e.g. monthly billing spans a date range).
+ * @param {object} bill
+ * @returns {{start: string, end: string} | null} null for single/multi-day bills with no period
+ */
 export function billPeriod(bill) {
   if (bill.periodStart && bill.periodEnd) return { start: bill.periodStart, end: bill.periodEnd }
   return null
 }
 
-// Parse a 'yyyy-MM-dd' string into a local Date (avoids UTC off-by-one).
+/** Parses a 'yyyy-MM-dd' string into a local Date (avoids the UTC off-by-one `new Date(str)` gives). */
 export function parseDate(dateStr) {
   return new Date(dateStr + 'T00:00:00')
 }
 
-// A signature for detecting duplicate bills: same customer, same work dates,
-// and same set of services ("same dates and jobs").
+/**
+ * A signature for detecting duplicate bills: same customer, same work
+ * dates, and same set of services ("same dates and jobs"). Two bills with
+ * equal signatures trigger the "duplicate bill" warning in New Bill.
+ */
 export function billSignature(bill) {
   const dates = workDaysOf(bill).map(d => d.date).filter(Boolean).sort().join(',')
   const jobs = [...new Set(itemsOf(bill).map(i => (i.name || '').trim().toLowerCase()).filter(Boolean))].sort().join(',')
   return `${bill.customerId}|${dates}|${jobs}`
 }
 
-// Normalized payment info for a bill. Falls back to the legacy `paid` boolean
-// (a paid bill with no payment record is treated as paid in full).
+/**
+ * Normalized payment info for a bill. Falls back to the legacy `paid`
+ * boolean (a paid bill with no payment record is treated as paid in full),
+ * so older bills saved before payment tracking existed still work.
+ * @param {object} bill
+ * @returns {{method: string, checkNumber: string, amountPaid: number}}
+ */
 export function paymentOf(bill) {
   const p = bill.payment || {}
   const hasAmount = p.amountPaid != null && p.amountPaid !== ''
@@ -68,9 +91,13 @@ export function paymentOf(bill) {
   return { method: p.method || '', checkNumber: p.checkNumber || '', amountPaid }
 }
 
-// A bill is overdue when it isn't fully paid and its date is more than
-// `days` days in the past. Drafts are still being edited, so they're never
-// chased as overdue.
+/**
+ * A bill is overdue when it isn't fully paid and its date is more than
+ * `days` days in the past. Drafts are still being edited, so they're never
+ * chased as overdue.
+ * @param {object} bill
+ * @param {number} [days=30]
+ */
 export function isOverdue(bill, days = 30) {
   if (bill.draft) return false
   if (paymentStatus(bill) === 'paid') return false
@@ -79,7 +106,7 @@ export function isOverdue(bill, days = 30) {
   return new Date() > due
 }
 
-// 'paid' | 'partial' | 'unpaid' for a bill, based on amount paid vs total.
+/** @returns {'paid' | 'partial' | 'unpaid'} based on amount paid vs total. */
 export function paymentStatus(bill) {
   const total = Number(bill.total) || 0
   const { amountPaid } = paymentOf(bill)
@@ -95,6 +122,7 @@ export const PAYMENT_METHODS = [
   { value: 'other', label: 'Other' },
 ]
 
+/** Display label for a PAYMENT_METHODS value, or '' if unrecognized. */
 export function paymentMethodLabel(value) {
   return PAYMENT_METHODS.find(m => m.value === value)?.label || ''
 }

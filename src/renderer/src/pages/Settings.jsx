@@ -3,6 +3,8 @@ import { Save, Upload, X, CheckCircle, Download, RotateCcw, AlertTriangle, Chevr
 import { useSettings } from '../SettingsContext'
 import { useLang } from '../i18n'
 
+// Business profile (name/logo/phone/email, stamped on every invoice),
+// overdue threshold, UI language, and manual backup/restore.
 export default function Settings() {
   const { reloadSettings } = useSettings()
   const { lang, setLang, t } = useLang()
@@ -38,6 +40,7 @@ export default function Settings() {
     else if (!res.canceled) flashBackup({ type: 'err', text: t('Backup failed.') })
   }
 
+  /** Restores from a chosen backup file, replacing current customers/bills/settings entirely. */
   async function doRestore() {
     setConfirmRestore(false)
     const res = await window.api.data.import()
@@ -171,6 +174,7 @@ export default function Settings() {
   )
 }
 
+/** Labeled text/number/email input used by the business-details form. */
 function Field({ label, value, onChange, placeholder, type = 'text' }) {
   return (
     <div>

@@ -5,6 +5,9 @@ import { billDate, paymentOf, WEEKDAYS } from '../utils/bills'
 import { generateDirectoryPDF, generateMonthlySheetPDF } from '../utils/pdf'
 import { useLang, fmtDate } from '../i18n'
 
+// Income reporting for a selected year (month-by-month and per-customer
+// totals, spreadsheet export), plus two printable owner tools that aren't
+// tied to a year: the client directory and the monthly work sheet.
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export default function Reports() {
@@ -50,6 +53,7 @@ export default function Reports() {
   })
   const customers = Object.values(byCustomer).sort((a, b) => b.billed - a.billed)
 
+  /** Exports the selected year's monthly + per-customer totals as a two-sheet spreadsheet. */
   async function exportSheet() {
     if (exporting) return
     setExporting(true)
@@ -93,6 +97,7 @@ export default function Reports() {
     })
     .sort((a, b) => a.c.name.localeCompare(b.c.name, undefined, { sensitivity: 'base' }))
 
+  /** Prints the client directory (owner-facing, follows app language — unlike invoices). */
   async function printDirectory() {
     const buf = await generateDirectoryPDF(
       dirRows.map(r => ({
@@ -114,6 +119,7 @@ export default function Reports() {
     await window.api.pdf.print(buf, 'client-directory.pdf')
   }
 
+  /** Exports the client directory as a spreadsheet. */
   async function exportDirectory() {
     const rows = dirRows.map(r => ({
       [t('Name')]: r.c.name,

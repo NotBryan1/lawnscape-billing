@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { LayoutDashboard, Users, FilePlus, Repeat, History, CreditCard, BarChart3, Settings as SettingsIcon, ChevronDown, Leaf, Moon } from 'lucide-react'
 import { useLang } from '../i18n'
 
+// User-facing tutorial content for the in-app Help tab (an accordion of
+// sections, one per major feature area). Keep this in sync when adding or
+// changing a feature — it's the app's only documentation for end users.
 const SECTIONS = [
   {
     icon: LayoutDashboard,

@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// Runs in an isolated context with access to Node APIs, bridging them to the
+// sandboxed renderer as `window.api`. Every method here is a thin wrapper
+// around one `ipcMain.handle` in src/main/index.js — this file is the
+// complete contract of what the renderer is allowed to ask the main
+// process to do; nothing else crosses that boundary.
 contextBridge.exposeInMainWorld('api', {
   customers: {
     getAll: () => ipcRenderer.invoke('customers:get-all'),

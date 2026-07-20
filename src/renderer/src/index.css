@@ -1,3 +1,5 @@
+/* Global styles: Tailwind layers, base resets, scrollbar styling, the dark
+ * theme overrides, and the command palette's entrance animation. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -21,6 +23,12 @@ body {
 /* ============================================================
    Dark theme — flips surfaces, text, borders, and semantic
    fills app-wide when the root has the `dark` class.
+
+   Overrides target Tailwind's own utility classes directly (e.g.
+   `.dark .bg-white`) rather than CSS custom properties, so components
+   never need a `dark:` variant of every className — add a new background,
+   text, or border color override here once and every existing usage
+   picks it up.
    ============================================================ */
 .dark { color-scheme: dark; }
 .dark body { background: #0d1117; color: #e6edf3; }

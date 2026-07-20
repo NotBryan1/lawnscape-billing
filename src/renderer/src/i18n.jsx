@@ -6,6 +6,8 @@ import { ES } from './i18n-es'
 // UI language only. Client-facing output (PDF invoices, email drafts) is
 // intentionally NOT translated — it always stays in English.
 
+// Mirrors the current language outside React state so fmtDate() (a plain
+// function, not a hook) can read it without needing a component to pass it in.
 let current = localStorage.getItem('lang') || 'en'
 
 const LanguageContext = createContext({ lang: 'en', setLang: () => {}, t: (s) => s })
@@ -36,6 +38,7 @@ export function LanguageProvider({ children }) {
   )
 }
 
+/** Returns `{ lang, setLang, t }` from the nearest LanguageProvider. */
 export function useLang() {
   return useContext(LanguageContext)
 }

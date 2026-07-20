@@ -7,6 +7,10 @@ import { itemsOf, billDate, parseDate, workDaysOf, billPeriod, paymentOf, paymen
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 
+// Every past bill: search/filter (name, service day, month, year), grouped
+// by month with infinite-scroll-style paging when unfiltered, a pinned
+// drafts section, and per-bill actions (preview/edit/print/email/download/delete).
+
 const PAGE = 25
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -286,6 +290,7 @@ export default function BillHistory() {
   )
 }
 
+/** One bill row: summary, items, payment status, and the action row (preview/edit/print/email/download/delete). */
 function BillCard({ bill, overdue, onPayment, onPreview, onEdit, onPrint, onEmail, onReExport, onDelete, onFinish }) {
   const { t } = useLang()
   const days = workDaysOf(bill)
@@ -381,6 +386,7 @@ const STATUS_STYLES = {
 }
 const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
 
+/** Payment-status pill on a BillCard; click opens PaymentModal. Overdue takes visual priority over the underlying status. */
 function PaymentBadge({ status, overdue, onClick }) {
   const { t } = useLang()
   if (overdue) {
@@ -401,6 +407,7 @@ function PaymentBadge({ status, overdue, onClick }) {
   )
 }
 
+/** Styled native <select> with a chevron icon, used for the filter dropdowns. */
 function Dropdown({ value, onChange, children }) {
   return (
     <div className="relative">

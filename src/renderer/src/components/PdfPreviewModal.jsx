@@ -4,8 +4,16 @@ import { generateBillPDF } from '../utils/pdf'
 import { billDate } from '../utils/bills'
 import { useLang } from '../i18n'
 
-// Renders a bill's PDF in-app (no download) using Chromium's PDF viewer.
-// `onDownload` overrides the default "save to disk" behavior when provided.
+/**
+ * Renders a bill's PDF in-app (no download) using Chromium's PDF viewer, in
+ * an object URL generated client-side and revoked on unmount.
+ * @param {object} props
+ * @param {object} props.bill
+ * @param {object} props.settings business info stamped onto the invoice
+ * @param {() => void} props.onClose
+ * @param {() => void} [props.onDownload] overrides the default "save to disk" behavior when provided
+ * @param {string} [props.downloadLabel='Download'] label for the download button (translated by the caller)
+ */
 export default function PdfPreviewModal({ bill, settings, onClose, onDownload, downloadLabel = 'Download' }) {
   const { t } = useLang()
   const [url, setUrl] = useState(null)

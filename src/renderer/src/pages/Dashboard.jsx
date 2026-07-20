@@ -9,6 +9,10 @@ import { useLang, fmtDate } from '../i18n'
 import { itemsOf, billDate, parseDate, paymentOf, isOverdue } from '../utils/bills'
 import PaymentModal from '../components/PaymentModal'
 
+// Landing page ("/"): a day-to-day summary rather than a full report —
+// this month's billed/collected, outstanding + overdue balances, who's
+// scheduled today (by service day), what still needs a payment recorded,
+// recent bills, and shortcuts into the rest of the app.
 export default function Dashboard() {
   const navigate = useNavigate()
   const { t } = useLang()
@@ -248,6 +252,7 @@ export default function Dashboard() {
   )
 }
 
+/** One clickable stat card in the top row (e.g. "Billed this month"). */
 function Tile({ icon, iconBg, label, value, valueClass, sub, onClick }) {
   return (
     <button
@@ -264,6 +269,7 @@ function Tile({ icon, iconBg, label, value, valueClass, sub, onClick }) {
   )
 }
 
+/** One shortcut card in the "Quick actions" row. */
 function QuickAction({ icon: Icon, label, desc, onClick }) {
   return (
     <button

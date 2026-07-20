@@ -3,7 +3,14 @@ import { X, Check } from 'lucide-react'
 import { paymentOf, PAYMENT_METHODS } from '../utils/bills'
 import { useLang } from '../i18n'
 
-// Edit how a bill was paid: method, check number, and amount paid (supports partial).
+/**
+ * Modal to edit how a bill was paid: method, check number, and amount paid
+ * (partial payments allowed, capped at the bill total).
+ * @param {object} props
+ * @param {object} props.bill
+ * @param {() => void} props.onClose
+ * @param {() => void} [props.onSaved] called after a successful save, before onClose
+ */
 export default function PaymentModal({ bill, onClose, onSaved }) {
   const { t } = useLang()
   const initial = paymentOf(bill)

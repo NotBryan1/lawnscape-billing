@@ -7,9 +7,14 @@ import { itemsOf, billDate, parseDate, workDaysOf, paymentOf, billSignature, DEF
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import { useLang, fmtDate } from '../i18n'
 
+// Three-step wizard (customer → work days → services) for creating or
+// editing a single bill. Also renders in "edit" mode when opened with
+// location.state.editBill, which skips straight to step 3.
+
 const uuid = () => crypto.randomUUID()
 const today = () => format(new Date(), 'yyyy-MM-dd')
 
+/** A fresh, empty services template: the built-in DEFAULT_SERVICES, all unchecked. */
 function baseTemplate() {
   return DEFAULT_SERVICES.map(name => ({ name, price: '', enabled: false, isDefault: true }))
 }
@@ -29,6 +34,7 @@ function templateFromBill(bill) {
   return [...updated, ...customs]
 }
 
+/** Builds one editable work-day entry (wizard shape) from a services template. */
 function dayFromTemplate(tpl, date) {
   return { id: uuid(), date, items: tpl.map(t => ({ ...t, id: uuid() })), note: '', showNote: false }
 }
@@ -181,6 +187,8 @@ export default function NewBill() {
   // Show the Services step oldest → newest, even if days were added out of order.
   const orderedDays = [...workDays].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 
+  // Assembles the wizard's in-progress state into the bill shape stored on
+  // disk (see src/main/index.js's saveBill and src/renderer/src/utils/bills.js).
   function buildBill() {
     const cleanDays = workDays
       .map(d => ({
@@ -223,6 +231,7 @@ export default function NewBill() {
     }
   }
 
+  /** Validates + checks for a duplicate before saving; a duplicate pauses on a confirm prompt instead of saving immediately. */
   function save(withPdf) {
     if (!canSave) return
     const bill = buildBill()
@@ -233,6 +242,7 @@ export default function NewBill() {
     doSave(bill, withPdf)
   }
 
+  /** Actually persists the bill (and optionally exports a PDF), bypassing the duplicate check. */
   async function doSave(bill, withPdf) {
     setSaving(true)
     try {
@@ -595,6 +605,7 @@ export default function NewBill() {
   )
 }
 
+/** Progress indicator for the 3-step wizard. */
 function Stepper({ step }) {
   const { t } = useLang()
   return (
@@ -620,6 +631,7 @@ function Stepper({ step }) {
   )
 }
 
+/** Plain bordered section card used throughout the Services step. */
 function Card({ label, action, children }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">

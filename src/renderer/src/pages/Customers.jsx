@@ -7,6 +7,9 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 import PaymentModal from '../components/PaymentModal'
 import { useLang, fmtDate } from '../i18n'
 
+// Customer list, add/edit/delete, spreadsheet import, and per-customer bill
+// history — everything under the "Customers" nav item.
+
 const EMPTY = { name: '', address: '', city: '', state: '', zip: '', phone: '', email: '', serviceDay: '', notes: '' }
 
 // A customer is active unless explicitly discontinued (older records have no flag).
@@ -83,6 +86,7 @@ export default function Customers() {
     load()
   }
 
+  // Import is two steps: pick + parse a spreadsheet (nothing saved yet)...
   async function handleImport() {
     setShowChoice(false)
     const res = await window.api.customers.import()
@@ -90,6 +94,7 @@ export default function Customers() {
     else if (res && !res.canceled) { setImportMsg(res.error || t('Import failed.')); setTimeout(() => setImportMsg(null), 3500) }
   }
 
+  // ...then the user reviews the preview and confirms, which actually saves them.
   async function confirmImport() {
     if (!importPreview?.length || importing) return
     setImporting(true)
@@ -364,6 +369,7 @@ export default function Customers() {
   )
 }
 
+/** One customer in the list: summary + quick actions (bill, discontinue/reactivate, edit, delete). */
 function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDelete, onToggleActive }) {
   const { t } = useLang()
   const unpaid = bills.filter(b => !b.paid).length
@@ -420,6 +426,7 @@ function CustomerRow({ customer: c, bills, active, onOpen, onBill, onEdit, onDel
   )
 }
 
+/** Slide-over panel: customer info + full bill history, with preview/edit/download/payment actions per bill. */
 function CustomerDetail({ customer, bills, settings, onClose, onChanged }) {
   const { t } = useLang()
   const navigate = useNavigate()
@@ -539,6 +546,7 @@ const TOGGLE_STYLES = {
 }
 const TOGGLE_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Record payment' }
 
+/** Small pill button showing a bill's payment status; click opens PaymentModal. */
 function PaymentToggle({ status, onClick }) {
   const { t } = useLang()
   return (
@@ -551,6 +559,7 @@ function PaymentToggle({ status, onClick }) {
   )
 }
 
+/** Generic centered modal shell used by every dialog on this page. */
 function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -568,6 +577,7 @@ function Modal({ title, onClose, children, wide }) {
   )
 }
 
+/** Labeled text input used throughout the add/edit customer form. */
 function Field({ label, value, onChange, placeholder }) {
   return (
     <div>

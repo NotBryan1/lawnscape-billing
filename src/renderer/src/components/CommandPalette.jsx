@@ -7,6 +7,7 @@ import {
 import { useTheme } from '../ThemeContext'
 import { useLang } from '../i18n'
 
+// Every route offered as a "Go to <page>" result when the query doesn't match a customer or action.
 const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { label: 'Customers', icon: Users, to: '/customers' },
@@ -101,6 +102,8 @@ export default function CommandPalette() {
         ])
     : []
 
+  // Customers, then actions, then nav — flattened into one list so arrow
+  // keys/Enter can move through all sections as if they were a single menu.
   const sections = []
   if (custRows.length) sections.push({ name: 'Customers', rows: custRows })
   if (actionRows.length) sections.push({ name: 'Actions', rows: actionRows })

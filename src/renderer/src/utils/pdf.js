@@ -1,7 +1,14 @@
 import { jsPDF } from 'jspdf'
 import { workDaysOf, billPeriod } from './bills'
 
-// Add a new page if there isn't room for `needed` mm of content; returns the y to use.
+// PDF generation for everything the app prints: invoices (renderBill and
+// its two callers), the owner-facing client directory, and the printable
+// monthly work sheet. All layout is done by hand with jsPDF's low-level
+// text/rect/line primitives (no table plugin) — every generator below
+// tracks its own `y` cursor down the page and calls addPage() when it runs
+// out of room.
+
+/** Adds a new page if there isn't room for `needed` mm below `y`; returns the y to draw at. */
 function ensureSpace(doc, y, needed) {
   if (y + needed > doc.internal.pageSize.getHeight() - 18) {
     doc.addPage()
@@ -10,7 +17,7 @@ function ensureSpace(doc, y, needed) {
   return y
 }
 
-// Render one invoice onto the current page of `doc`, starting at the top.
+/** Renders one invoice onto the current page of `doc`, starting at the top. Shared by generateBillPDF and generateBillsPDF. */
 function renderBill(doc, bill, settings) {
   const W = doc.internal.pageSize.getWidth()
   let y = 15
@@ -156,8 +163,13 @@ function renderBill(doc, bill, settings) {
   doc.text('Thank you for your business!', W / 2, footerY, { align: 'center' })
 }
 
-// One bill → a PDF buffer. `autoPrint` embeds a print request so viewers
-// that support it pop the print dialog on open.
+/**
+ * Renders a single invoice.
+ * @param {object} bill
+ * @param {object} settings business name/phone/email/logo, stamped in the header
+ * @param {{autoPrint?: boolean}} [opts] autoPrint embeds a print request so viewers that support it pop the print dialog on open
+ * @returns {Promise<ArrayBuffer>}
+ */
 export async function generateBillPDF(bill, settings, opts = {}) {
   const doc = new jsPDF()
   renderBill(doc, bill, settings)
@@ -165,7 +177,12 @@ export async function generateBillPDF(bill, settings, opts = {}) {
   return doc.output('arraybuffer')
 }
 
-// Many bills → a single PDF buffer, one invoice per page.
+/**
+ * Renders many invoices into a single PDF, one per page (e.g. exporting a whole Monthly Billing run at once).
+ * @param {object[]} bills
+ * @param {object} settings
+ * @returns {Promise<ArrayBuffer>}
+ */
 export async function generateBillsPDF(bills, settings) {
   const doc = new jsPDF()
   bills.forEach((bill, i) => {
@@ -175,8 +192,16 @@ export async function generateBillsPDF(bills, settings) {
   return doc.output('arraybuffer')
 }
 
-// Owner-facing printable client directory. Labels arrive already translated
-// (this report follows the app language; invoices always stay English).
+/**
+ * Owner-facing printable client directory (name, address, contact, average
+ * charge per month) shown on the Reports page. Labels arrive already
+ * translated by the caller — this report follows the app language, unlike
+ * invoices, which always stay English.
+ * @param {Array<{name: string, address: string, contact: string[], avg: string}>} rows
+ * @param {{title: string, subtitle: string, name: string, address: string, contact: string, avg: string}} labels
+ * @param {{autoPrint?: boolean}} [opts]
+ * @returns {Promise<ArrayBuffer>}
+ */
 export async function generateDirectoryPDF(rows, labels, opts = {}) {
   const doc = new jsPDF()
   const W = doc.internal.pageSize.getWidth()
@@ -240,11 +265,17 @@ export async function generateDirectoryPDF(rows, labels, opts = {}) {
   return doc.output('arraybuffer')
 }
 
-// Printable field form: every active client on one compact row, with a
-// blank Date/Work grid for a worker to fill in by hand — one row per client
-// rather than a whole block, so a long client list still fits in a handful
-// of pages. Landscape + no billing data involved, so it stays
-// language-neutral like generateDirectoryPDF.
+/**
+ * Printable field form: every active client on one compact row, with a
+ * blank Date/Work grid for a worker to fill in by hand — one row per
+ * client rather than a whole block, so a long client list still fits in a
+ * handful of pages. Landscape + no billing data involved, so it stays
+ * language-neutral like generateDirectoryPDF.
+ * @param {Array<{name: string, address: string}>} rows
+ * @param {{title: string, subtitle: string, name: string, address: string, date: string, work: string}} labels
+ * @param {{autoPrint?: boolean, visits?: number}} [opts] visits sets how many Date/Work column pairs per client (default 5)
+ * @returns {Promise<ArrayBuffer>}
+ */
 export async function generateMonthlySheetPDF(rows, labels, opts = {}) {
   const doc = new jsPDF({ orientation: 'landscape' })
   const W = doc.internal.pageSize.getWidth()
@@ -336,6 +367,7 @@ export async function generateMonthlySheetPDF(rows, labels, opts = {}) {
   return doc.output('arraybuffer')
 }
 
+/** Formats a 'yyyy-MM-dd' string as a long English date (e.g. "July 20, 2026") for invoice text — always English, regardless of app language. */
 function formatDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {

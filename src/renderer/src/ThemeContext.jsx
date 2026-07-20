@@ -1,5 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
+// Light/dark theme, persisted to localStorage and applied as a `dark` class
+// on <html> (Tailwind's dark-mode selector). main.jsx applies the saved
+// theme before first paint separately, to avoid a flash of the wrong theme.
+
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} })
 
 export function ThemeProvider({ children }) {
@@ -21,6 +25,7 @@ export function ThemeProvider({ children }) {
   )
 }
 
+/** Returns `{ theme, toggleTheme }` from the nearest ThemeProvider. */
 export function useTheme() {
   return useContext(ThemeContext)
 }

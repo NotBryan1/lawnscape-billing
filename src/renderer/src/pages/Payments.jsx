@@ -5,6 +5,9 @@ import { useLang, fmtDate } from '../i18n'
 import { billDate, parseDate, paymentOf, paymentStatus, paymentMethodLabel, isOverdue } from '../utils/bills'
 import PaymentModal from '../components/PaymentModal'
 
+// Every bill viewed through a payment lens: status filters (unpaid/partial/
+// overdue/paid), search, month/year, and a shortcut to record a payment.
+
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'unpaid', label: 'Unpaid' },
@@ -187,6 +190,7 @@ export default function Payments() {
 const STATUS_STYLES = { paid: 'bg-green-100 text-green-700', partial: 'bg-amber-100 text-amber-700', unpaid: 'bg-gray-100 text-gray-500' }
 const STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' }
 
+/** Payment-status pill; overdue takes visual priority over the underlying status. */
 function StatusBadge({ status, overdue }) {
   const { t } = useLang()
   if (overdue) {
@@ -195,6 +199,7 @@ function StatusBadge({ status, overdue }) {
   return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[status]}`}>{t(STATUS_LABELS[status])}</span>
 }
 
+/** Styled native <select> with a chevron icon, used for the month/year filter dropdowns. */
 function Dropdown({ value, onChange, children }) {
   return (
     <div className="relative">

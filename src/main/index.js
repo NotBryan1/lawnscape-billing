@@ -7,24 +7,39 @@ import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import * as XLSX from 'xlsx'
 
+/**
+ * Electron main process. Owns everything the renderer isn't allowed to
+ * touch directly: the app's persistent data (customers/bills/settings as
+ * plain JSON files under Electron's userData dir), native dialogs (open
+ * file, save file), weekly auto-backups, the app window, and Windows
+ * auto-update. The renderer talks to all of this over IPC via the
+ * `window.api` surface defined in src/preload/index.js — every
+ * `ipcMain.handle` below is one method on that surface.
+ */
+
+/** Returns (creating if needed) the folder that holds customers.json, bills.json, settings.json. */
 function getDataDir() {
   const dir = path.join(app.getPath('userData'), 'data')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
+/** Parses a JSON file, returning `null` if it doesn't exist or is invalid. */
 function readJSON(filePath) {
   if (!fs.existsSync(filePath)) return null
   try { return JSON.parse(fs.readFileSync(filePath, 'utf-8')) } catch { return null }
 }
 
+/** Writes `data` as pretty-printed JSON, overwriting whatever was there. */
 function writeJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
 }
 
 // --- Customers ---
 function customersPath() { return path.join(getDataDir(), 'customers.json') }
+/** All customers, active and discontinued. */
 function readCustomers() { return readJSON(customersPath()) || [] }
+/** Upserts a customer by `id` and persists the full list. */
 function saveCustomer(customer) {
   const list = readCustomers()
   const idx = list.findIndex(c => c.id === customer.id)
@@ -37,6 +52,8 @@ function deleteCustomer(id) {
 }
 
 // --- Customer spreadsheet import ---
+// Maps every day-name spelling/abbreviation we accept (English + Spanish,
+// accents stripped) to its canonical English weekday name.
 const DAY_NORMAL = {
   mon: 'Monday', monday: 'Monday', tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
   wed: 'Wednesday', weds: 'Wednesday', wednesday: 'Wednesday', thu: 'Thursday', thur: 'Thursday',
@@ -47,9 +64,15 @@ const DAY_NORMAL = {
   viernes: 'Friday', sabado: 'Saturday', domingo: 'Sunday',
 }
 const stripAccents = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+/** Normalizes a free-form day string (any spelling/language above) to a canonical weekday, or '' if unrecognized. */
 function normalizeDay(s) {
   return DAY_NORMAL[stripAccents(s).toLowerCase().trim()] || ''
 }
+/**
+ * Reads the first sheet of a customer spreadsheet (xlsx/xls/csv) and maps
+ * its columns — in any order, headers in English or Spanish — to customer
+ * fields. Rows without a name are dropped.
+ */
 function parseCustomersFromSheet(filePath) {
   const wb = XLSX.readFile(filePath)
   const sheet = wb.Sheets[wb.SheetNames[0]]
@@ -86,6 +109,7 @@ function readAllBills() { return readJSON(billsPath()) || [] }
 function nextInvoiceNumber(list) {
   return list.reduce((m, b) => Math.max(m, Number(b.invoiceNumber) || 0), 1000) + 1
 }
+/** Upserts a bill by `id`; new bills get the next sequential invoice number, edits keep theirs. */
 function saveBill(bill) {
   const list = readAllBills()
   const idx = list.findIndex(b => b.id === bill.id)
@@ -103,6 +127,7 @@ function saveBill(bill) {
 function deleteBill(id) {
   writeJSON(billsPath(), readAllBills().filter(b => b.id !== id))
 }
+/** Sets the legacy paid/unpaid flag directly (used by the quick-toggle in the UI). */
 function setBillPaid(id, paid) {
   const list = readAllBills()
   const idx = list.findIndex(b => b.id === id)
@@ -111,6 +136,7 @@ function setBillPaid(id, paid) {
   writeJSON(billsPath(), list)
   return list[idx]
 }
+/** Records a (possibly partial) payment against a bill, clamped to the bill total. */
 function setBillPayment(id, payment) {
   const list = readAllBills()
   const idx = list.findIndex(b => b.id === id)
@@ -133,6 +159,7 @@ function setBillPayment(id, payment) {
 
 // --- Settings ---
 function settingsPath() { return path.join(getDataDir(), 'settings.json') }
+/** Business settings merged over defaults, so older data files without newer fields still work. */
 function readSettings() {
   const defaults = { businessName: '', phone: '', email: '', logo: null, overdueDays: 30 }
   return { ...defaults, ...(readJSON(settingsPath()) || {}) }
@@ -148,6 +175,7 @@ function backupsDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   return dir
 }
+/** Writes a dated backup if the last one is 7+ days old (or missing), then prunes to the last 8. Never throws. */
 function maybeAutoBackup() {
   try {
     const dir = backupsDir()
@@ -175,6 +203,7 @@ function maybeAutoBackup() {
 }
 
 // --- Window ---
+/** Creates the main app window: dev builds load the Vite dev server, packaged builds load the built renderer. */
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -220,10 +249,13 @@ app.on('window-all-closed', () => {
 })
 
 // --- IPC Handlers ---
+// Each handle() below backs one method on window.api (see src/preload/index.js).
 ipcMain.handle('customers:get-all', () => readCustomers())
 ipcMain.handle('customers:save', (_, c) => saveCustomer(c))
 ipcMain.handle('customers:delete', (_, id) => deleteCustomer(id))
 
+// Opens a file picker and parses the chosen spreadsheet; does not save
+// anything yet — the renderer shows a preview and calls bulk-add to confirm.
 ipcMain.handle('customers:import', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Import Customers',
@@ -269,6 +301,7 @@ ipcMain.handle('logo:select', async () => {
 })
 
 // --- Backup / Restore ---
+// Manual, user-triggered versions of the same export/import shape maybeAutoBackup() uses.
 ipcMain.handle('data:export', async () => {
   const payload = {
     app: 'lawnscape-billing',

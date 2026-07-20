@@ -14,6 +14,10 @@ import { SettingsProvider } from './SettingsContext'
 import { ThemeProvider } from './ThemeContext'
 import { LanguageProvider } from './i18n'
 
+// Root component: wraps the app in its three context providers (language,
+// theme, business settings) and lays out the sidebar + routed page area.
+// HashRouter (not BrowserRouter) because the renderer is loaded from a
+// file:// URL in packaged builds, which has no server to resolve real paths.
 export default function App() {
   return (
     <LanguageProvider>

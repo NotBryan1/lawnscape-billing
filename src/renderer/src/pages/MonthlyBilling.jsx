@@ -6,17 +6,23 @@ import { itemsOf, billDate, parseDate, weekdayIndex, WEEKDAYS } from '../utils/b
 import { generateBillsPDF } from '../utils/pdf'
 import { useLang } from '../i18n'
 
+// Batch-bills every repeat customer for a chosen month in one pass: for each
+// active customer with a service day, generates one work day per occurrence
+// of that day in the month (editable before generating), carrying over
+// services/prices from their last bill. Customers already billed for the
+// selected month are shown separately so nobody gets double-billed.
+
 const uuid = () => crypto.randomUUID()
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-// The services to recur from a customer's last bill (deduped by name, latest price).
+/** The services to recur from a customer's last bill (deduped by name, latest price). */
 function recurringItems(bill) {
   const byName = {}
   itemsOf(bill).forEach(i => { byName[i.name] = Number(i.price) })
   return Object.entries(byName).map(([name, price]) => ({ name, price }))
 }
 
-// Every date in [from, to] on the customer's service day. No set day → single visit on the end date.
+/** Every date in [from, to] on the customer's service day. No set day → single visit on the end date. */
 function visitDates(serviceDay, from, to) {
   const target = weekdayIndex(serviceDay)
   if (target < 0) return [to]
@@ -135,6 +141,7 @@ export default function MonthlyBilling() {
     })
   }
 
+  /** Builds one bill (period = the selected month) from a row's customer, items, and (possibly edited) visit dates. */
   function buildBill(r) {
     const dates = [...r.visits].sort((a, b) => a.localeCompare(b))
     const workDays = dates.map(date => ({ id: uuid(), date, items: r.items }))
@@ -162,6 +169,7 @@ export default function MonthlyBilling() {
     }
   }
 
+  /** Saves a bill for every selected, billable row, sequentially (so invoice numbers assign in a stable order). */
   async function generate() {
     if (!selectedRows.length || generating) return
     setGenerating(true)

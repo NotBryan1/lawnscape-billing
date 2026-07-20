@@ -9,6 +9,10 @@ import { useTheme } from '../ThemeContext'
 import { useLang } from '../i18n'
 import { isOverdue } from '../utils/bills'
 
+// Left-hand nav: collapsible, groups routes under section labels, and shows
+// a red overdue-bills badge on Payments. GROUPS is the single source of
+// truth for both nav order and labels — add a route to App.jsx's <Routes>
+// and a matching entry here to make it navigable.
 const GROUPS = [
   { label: null, items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
   {
