@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, Download, ChevronDown, CheckCircle, Printer } from 'lucide-react'
 import * as XLSX from 'xlsx'
-import { billDate, paymentOf } from '../utils/bills'
-import { generateDirectoryPDF } from '../utils/pdf'
+import { billDate, paymentOf, WEEKDAYS } from '../utils/bills'
+import { generateDirectoryPDF, generateMonthlySheetPDF } from '../utils/pdf'
 import { useLang, fmtDate } from '../i18n'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -132,6 +132,35 @@ export default function Reports() {
       extensions: ['xlsx'],
     })
     if (ok) { setMsg(t('Client list exported!')); setTimeout(() => setMsg(null), 3000) }
+  }
+
+  // Monthly work sheet: active clients grouped by service day, each with a
+  // blank grid a worker fills in by hand — no billing data involved.
+  const sheetRows = allCustomers
+    .filter(c => c.active !== false)
+    .sort((a, b) => {
+      const ra = WEEKDAYS.indexOf(a.serviceDay), rb = WEEKDAYS.indexOf(b.serviceDay)
+      return (ra === -1 ? WEEKDAYS.length : ra) - (rb === -1 ? WEEKDAYS.length : rb)
+        || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    })
+
+  async function printMonthlySheet() {
+    const buf = await generateMonthlySheetPDF(
+      sheetRows.map(c => ({
+        name: c.name,
+        address: [c.address, c.city, c.state, c.zip].filter(Boolean).join(', '),
+      })),
+      {
+        title: t('{month} Service Log', { month: fmtDate(new Date(), 'MMMM yyyy') }),
+        subtitle: `${t('Generated {date}', { date: fmtDate(new Date(), 'MMMM d, yyyy') })} · ${t('{n} clients', { n: sheetRows.length })}`,
+        name: t('Name'),
+        address: t('Address'),
+        date: t('Date'),
+        work: t('Work'),
+      },
+      { autoPrint: true }
+    )
+    await window.api.pdf.print(buf, 'monthly-service-log.pdf')
   }
 
   return (
@@ -306,6 +335,23 @@ export default function Reports() {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Monthly work sheet — blank form for workers to log visits by hand */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <div>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('Monthly work sheet')}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{t("Printable sheet for workers to log the date and work done at each client's home.")}</p>
+          </div>
+          <button
+            onClick={printMonthlySheet}
+            disabled={!sheetRows.length}
+            className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-40 text-xs font-medium transition-colors shrink-0"
+          >
+            <Printer size={13} /> {t('Print')}
+          </button>
+        </div>
       </div>
     </div>
   )

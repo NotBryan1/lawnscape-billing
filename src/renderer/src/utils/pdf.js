@@ -240,6 +240,102 @@ export async function generateDirectoryPDF(rows, labels, opts = {}) {
   return doc.output('arraybuffer')
 }
 
+// Printable field form: every active client on one compact row, with a
+// blank Date/Work grid for a worker to fill in by hand — one row per client
+// rather than a whole block, so a long client list still fits in a handful
+// of pages. Landscape + no billing data involved, so it stays
+// language-neutral like generateDirectoryPDF.
+export async function generateMonthlySheetPDF(rows, labels, opts = {}) {
+  const doc = new jsPDF({ orientation: 'landscape' })
+  const W = doc.internal.pageSize.getWidth()
+  const H = doc.internal.pageSize.getHeight()
+  const visits = opts.visits || 5
+  const MIN_ROW_H = 11
+  const HEAD_H = 9
+  const NAME_W = 38
+  const ADDR_W = 52
+  const VISIT_W = (W - 28 - NAME_W - ADDR_W) / visits
+  const DATE_W = VISIT_W * 0.35
+  const X = { name: 14, address: 14 + NAME_W, visits: 14 + NAME_W + ADDR_W }
+
+  let y = 16
+
+  function drawTitle() {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(15)
+    doc.text(labels.title, W / 2, y, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(130, 130, 130)
+    doc.text(labels.subtitle, W / 2, y + 6, { align: 'center' })
+    doc.setTextColor(0, 0, 0)
+    y += 13
+  }
+
+  function drawHeader() {
+    doc.setFillColor(34, 139, 34)
+    doc.rect(14, y, W - 28, HEAD_H, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(255, 255, 255)
+    doc.text(labels.name, X.name + 2, y + 6)
+    doc.text(labels.address, X.address + 2, y + 6)
+    for (let i = 0; i < visits; i++) {
+      const vx = X.visits + i * VISIT_W
+      doc.text(labels.date, vx + 2, y + 6)
+      doc.text(labels.work, vx + DATE_W + 2, y + 6)
+    }
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    y += HEAD_H
+  }
+
+  drawTitle()
+  drawHeader()
+
+  rows.forEach((r, i) => {
+    const nameLines = doc.splitTextToSize(r.name, NAME_W - 3)
+    const addrLines = r.address ? doc.splitTextToSize(r.address, ADDR_W - 3) : []
+    const rowH = Math.max(MIN_ROW_H, Math.max(nameLines.length, addrLines.length) * 3.8 + 3)
+
+    if (y + rowH > H - 14) {
+      doc.addPage()
+      y = 16
+      drawHeader()
+    }
+
+    if (i % 2 === 0) {
+      doc.setFillColor(245, 248, 245)
+      doc.rect(14, y, W - 28, rowH, 'F')
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.text(nameLines, X.name + 2, y + 4.5)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(90, 90, 90)
+    doc.text(addrLines, X.address + 2, y + 4.5)
+    doc.setTextColor(0, 0, 0)
+
+    doc.setDrawColor(200)
+    doc.setLineWidth(0.25)
+    doc.line(14, y, 14, y + rowH)
+    doc.line(X.address, y, X.address, y + rowH)
+    for (let v = 0; v < visits; v++) {
+      const vx = X.visits + v * VISIT_W
+      doc.line(vx, y, vx, y + rowH)
+      doc.line(vx + DATE_W, y, vx + DATE_W, y + rowH)
+    }
+    doc.line(W - 14, y, W - 14, y + rowH)
+    doc.line(14, y + rowH, W - 14, y + rowH)
+
+    y += rowH
+  })
+
+  if (opts.autoPrint && typeof doc.autoPrint === 'function') doc.autoPrint()
+  return doc.output('arraybuffer')
+}
+
 function formatDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {
